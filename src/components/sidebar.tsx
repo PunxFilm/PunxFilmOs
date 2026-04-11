@@ -11,6 +11,7 @@ const navItems = [
   { href: "/submissions", label: "Iscrizioni" },
   { href: "/tasks", label: "Task" },
   { href: "/finance", label: "Finanza" },
+  { href: "/team", label: "Team" },
   { href: "/settings", label: "Impostazioni" },
   { href: "/import", label: "Import" },
   { href: "/calendar", label: "Calendario" },
