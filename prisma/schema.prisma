@@ -1,0 +1,466 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────
+// PERSON (regista, produttore, sceneggiatore)
+// ──────────────────────────────────────────
+
+model Person {
+  id             String    @id @default(cuid())
+  firstName      String
+  lastName       String
+  birthDate      DateTime?
+  codiceFiscale  String?
+  partitaIva     String?
+  email          String?
+  phone          String?
+  website        String?
+  bioIt          String?
+  bioEn          String?
+  filmography    String?
+  socialMedia    String? // JSON
+  company        String?
+  companyRole    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  filmsAsDirector  Film[] @relation("FilmDirector")
+  filmsAsProducer  Film[] @relation("FilmProducer")
+
+  @@index([lastName])
+  @@index([email])
+}
+
+// ──────────────────────────────────────────
+// DISTRIBUTION CONTRACT
+// ──────────────────────────────────────────
+
+model DistributionContract {
+  id              String   @id @default(cuid())
+  filmId          String
+  distributorName String
+  clientName      String
+  clientEmail     String?
+  startDate       DateTime
+  endDate         DateTime
+  status          String   @default("active") // active | expired | terminated
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  film Film @relation(fields: [filmId], references: [id], onDelete: Cascade)
+
+  @@index([filmId])
+  @@index([status])
+}
+
+// ──────────────────────────────────────────
+// FILM
+// ──────────────────────────────────────────
+
+model Film {
+  id              String   @id @default(cuid())
+  base44Id        String?  @unique // ID originale da Base44
+  titleOriginal   String
+  titleInternational String?
+  titleOtherLanguages String? // JSON o comma-separated
+  director        String
+  directors       String? // JSON array con dettagli registi
+  producers       String? // JSON array con dettagli produttori
+  screenwriters   String? // nomi sceneggiatori
+  crew            String? // testo crew completo
+  cast            String? // testo cast completo
+  year            Int
+  duration        Float // minuti (supporta decimali come 11.67)
+  genre           String
+  subgenre        String?
+  country         String
+  productionBudget Float?
+  productionDate  String? // mese/anno produzione
+  spokenLanguages String? // comma-separated
+  subtitleLanguages String? // comma-separated
+  synopsisShortIt String?
+  synopsisShortEn String?
+  synopsisLongIt  String?
+  synopsisLongEn  String?
+  premiereStatus  String? // world_premiere | international_premiere | european_premiere | national_premiere
+  status          String   @default("onboarding") // onboarding | in_distribuzione | active | archived | completed
+  // Tecnico
+  shootingFormat  String?
+  soundFormat     String?
+  aspectRatio     String?
+  musicRights     String? // cleared | pending | issues
+  // Link
+  screenerLink     String?
+  screenerPassword String?
+  screenerPrivate  Boolean @default(false)
+  posterUrl        String?
+  officialWebsite  String?
+  socialMediaLinks String? // JSON array
+  // Contatti
+  ownerEmail      String?
+  // Note
+  internalNotes   String?
+  clientNotes     String?
+  tags            String? // comma-separated
+  // Relazioni Person
+  personDirectorId String?
+  personProducerId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  personDirector    Person? @relation("FilmDirector", fields: [personDirectorId], references: [id])
+  personProducer    Person? @relation("FilmProducer", fields: [personProducerId], references: [id])
+  submissions       Submission[]
+  distributionPlans DistributionPlan[]
+  tasks             Task[]
+  materials         FilmMaterial[]
+  contracts         DistributionContract[]
+
+  @@index([status])
+  @@index([premiereStatus])
+  @@index([personDirectorId])
+}
+
+model FilmMaterial {
+  id         String    @id @default(cuid())
+  filmId     String
+  type       String // screener_link | poster | still | synopsis_it | synopsis_en | bio_director | tech_sheet | trailer | dcp | press_kit | subtitles_en | subtitles_it | dialogue_list
+  url        String?
+  status     String    @default("missing") // missing | uploaded | approved
+  isRequired Boolean   @default(true)
+  uploadedAt DateTime?
+  approvedAt DateTime?
+  approvedBy String?
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  film Film @relation(fields: [filmId], references: [id], onDelete: Cascade)
+
+  @@unique([filmId, type])
+  @@index([filmId])
+  @@index([status])
+}
+
+// ──────────────────────────────────────────
+// FESTIVAL (Master + Edition)
+// ──────────────────────────────────────────
+
+model FestivalMaster {
+  id             String  @id @default(cuid())
+  base44Id       String? @unique // ID originale da Base44 per sync
+  name           String
+  canonicalName  String? // nome normalizzato per dedup
+  country        String
+  region         String?
+  city           String
+  website        String?
+  instagram      String?
+  // Classificazione
+  classification String? // international | national | regional | local | competitive | non-competitive
+  type           String? // short | mixed | documentary | feature | animation | genre
+  focus          String? // specializzazione tematica
+  // Requisiti film
+  maxMinutes       Int? // durata massima accettata
+  acceptedGenres   String? // comma-separated
+  acceptedThemes   String? // comma-separated
+  acceptsFirstWork Boolean @default(false)
+  directorRequirements String?
+  regulationsUrl   String?
+  // Qualità e premi
+  punxRating               Int? // 1-5 rating manuale PunxFilm
+  qualityScore             Int? // 1-100 AI score
+  academyQualifying        Boolean @default(false)
+  baftaQualifying          Boolean @default(false)
+  canadianScreenQualifying Boolean @default(false)
+  goyaQualifying           Boolean @default(false)
+  efaQualifying            Boolean @default(false)
+  shortFilmConferenceMember Boolean @default(false)
+  qualifying               String? // JSON o testo con dettagli qualifying
+  // Proiezione
+  screeningType     String? // online | in_person | hybrid
+  screeningLocation String?
+  screeningQuality  String?
+  dcp               Boolean @default(false)
+  // Industry
+  industry              Boolean @default(false)
+  maxYearsProduction    Int?
+  travelSupport         String?
+  hospitalitySupport    String?
+  // Contatti
+  contactName           String?
+  contactRole           String?
+  contactTelephone      String?
+  contactEmailDirector  String?
+  contactEmailInfo      String?
+  contactEmailTechnical String?
+  // Note interne PunxFilm
+  internalNotes String?
+  punxHistory   String? // storico relazione PunxFilm con questo festival
+  // Waiver
+  waiverType    String   @default("none") // none | code | agreement | request_pending
+  waiverDetails String?
+  // Submission platform
+  submissionUrlBase String?
+  submissionPlatform String? // filmfreeway | festhome | shortfilmdepot | altro | direct
+  // Verifica e data quality
+  isActive             Boolean  @default(true)
+  isMergedDuplicate    Boolean  @default(false)
+  mergedIntoFestivalId String?
+  lastVerifiedAt       DateTime?
+  verificationStatus   String   @default("unverified") // unverified | verified | needs_review
+  needsAiRefresh       Boolean  @default(false)
+  verificationNotes    String?
+  dataConfidenceScore  Float?
+  sourceLastChecked    String?
+  sourceLastCheckedAt  DateTime?
+  sourceNotes          String?
+  foundedYear          Int?
+  openingDate          String? // mese/giorno tipico di apertura iscrizioni
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  editions    FestivalEdition[]
+  planEntries PlanEntry[]
+  materialRequirements FestivalMaterialRequirement[]
+
+  @@index([classification])
+  @@index([type])
+  @@index([country])
+  @@index([isActive])
+  @@index([academyQualifying])
+  @@index([canonicalName])
+}
+
+model FestivalEdition {
+  id               String    @id @default(cuid())
+  base44Id         String?   @unique // ID originale da Base44 per sync
+  festivalMasterId String
+  festivalName     String? // nome denormalizzato per display rapido
+  year             Int
+  editionNumber    Int?
+  // Lifecycle
+  lifecycleStatus  String? // draft | scouting | submission_open | submission_closed | selection | event | completed
+  isLocked         Boolean  @default(false)
+  // Deadline
+  openingDate      DateTime?
+  deadlineEarly    DateTime?
+  deadlineGeneral  DateTime? // "regular_deadline" in Base44
+  deadlineLate     DateTime?
+  deadlineFinal    DateTime?
+  deadlineRaw      String? // testo originale scraping
+  activeDeadlineType String? // none | early | regular | late | final
+  activeDeadlineDate DateTime?
+  daysToDeadline   Int?
+  // Date festival ed esiti
+  notificationDate DateTime?
+  notificationDateRaw String?
+  eventStartDate   DateTime?
+  eventEndDate     DateTime?
+  eventPeriodRaw   String?
+  // Fee
+  feeAmountRaw     String? // testo originale
+  feeAmount        Float?
+  feeLateFee       Float?
+  feeCurrency      String    @default("USD")
+  // Fee documentari (separata)
+  docuFeeRaw       String?
+  docuFeeAmount    Float?
+  // Screening fee
+  screeningFee     Float?
+  // Premi
+  prizeRaw         String?
+  prizeCash        Float?
+  prizeService     String?
+  prizeDescription String?
+  docuPrizeRaw     String?
+  // Regole
+  premiereRules    String?
+  durationRules    String?
+  categoryRules    String?
+  regulationsText  String?
+  sectionCategories String?
+  themes           String?
+  // Waiver
+  waiverPolicy     String? // non_dichiarata | no_waiver | waiver_disponibile | waiver_ottenuto
+  waiverCode       String?
+  waiverNotes      String?
+  // Stato e verifica
+  status           String? // aperta | chiusa | in_valutazione | completata
+  computedStatus   String?
+  verificationStatus String  @default("unverified")
+  lastVerifiedDate DateTime?
+  needsReview      Boolean  @default(false)
+  inheritedFromPrevious Boolean @default(false)
+  // Sync
+  lastSyncFilmfreeway   DateTime?
+  filmfreewaySyncNotes  String?
+  sourceLastCheckedAt   DateTime?
+  sourceLastCheckedBy   String?
+  sourceNotes           String?
+  sourceUrlsChecked     String?
+  // Note
+  importNotes      String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  festivalMaster FestivalMaster @relation(fields: [festivalMasterId], references: [id], onDelete: Cascade)
+  submissions    Submission[]
+  planEntries    PlanEntry[]
+
+  @@unique([festivalMasterId, year])
+  @@index([festivalMasterId])
+  @@index([deadlineGeneral])
+  @@index([eventStartDate])
+  @@index([lifecycleStatus])
+  @@index([year])
+}
+
+model FestivalMaterialRequirement {
+  id               String  @id @default(cuid())
+  festivalMasterId String
+  materialType     String // stesso enum di FilmMaterial.type
+  isRequired       Boolean @default(true)
+  notes            String? // es. "poster orizzontale 300dpi"
+
+  festivalMaster FestivalMaster @relation(fields: [festivalMasterId], references: [id], onDelete: Cascade)
+
+  @@unique([festivalMasterId, materialType])
+  @@index([festivalMasterId])
+}
+
+// ──────────────────────────────────────────
+// SUBMISSION
+// ──────────────────────────────────────────
+
+model Submission {
+  id                String    @id @default(cuid())
+  filmId            String
+  festivalEditionId String
+  status            String    @default("draft") // draft | submitted | accepted | rejected | withdrawn
+  platform          String? // filmfreeway | festhome | direct | other
+  submittedAt       DateTime?
+  // Fee model: estimatedFee = addebitata al cliente, feesPaid = pagata al festival
+  estimatedFee      Float? // fee stimata addebitata al cliente
+  feesPaid          Float? // fee effettivamente pagata al festival (actualFee)
+  waiverApplied     Boolean   @default(false)
+  waiverCode        String?
+  result            String? // official_selection | competition | special_mention | award
+  notificationDate  DateTime? // data notifica esito dal festival
+  festivalEventDate DateTime? // data evento festival (denormalizzata per query)
+  prizeAmount       Float? // importo premio se vinto
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  film            Film            @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  festivalEdition FestivalEdition @relation(fields: [festivalEditionId], references: [id], onDelete: Cascade)
+  tasks           Task[]
+  planEntry       PlanEntry?
+
+  @@unique([filmId, festivalEditionId])
+  @@index([status])
+  @@index([filmId])
+  @@index([festivalEditionId])
+}
+
+// ──────────────────────────────────────────
+// STRATEGY (Distribution Plan)
+// ──────────────────────────────────────────
+
+model DistributionPlan {
+  id                       String   @id @default(cuid())
+  filmId                   String
+  premiereLevel            String // world | international | european | national
+  status                   String   @default("draft") // draft | active | completed | archived
+  materialChecklistComplete Boolean  @default(false)
+  aiAnalysis               String? // JSON: analisi AI del film
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  film    Film        @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  entries PlanEntry[]
+
+  @@index([filmId])
+  @@index([status])
+}
+
+model PlanEntry {
+  id                String   @id @default(cuid())
+  planId            String
+  festivalMasterId  String
+  festivalEditionId String?
+  role              String // premiere | queue
+  position          Int // 0 per premiere, 1+ per coda
+  status            String   @default("pending") // pending | approved | rejected | subscribed
+  priority          String? // A | B | C (A=auto per A-list/academy/cash, B/C=AI)
+  matchScore        Float? // 0-100
+  matchReasoning    String?
+  waiverApplied     Boolean  @default(false)
+  waiverCode        String?
+  estimatedFee      Float? // fee stimata da edition
+  actualFee         Float? // fee effettivamente pagata
+  submissionId      String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  plan            DistributionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  festivalMaster  FestivalMaster   @relation(fields: [festivalMasterId], references: [id], onDelete: Cascade)
+  festivalEdition FestivalEdition? @relation(fields: [festivalEditionId], references: [id])
+  submission      Submission?      @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+
+  @@unique([planId, festivalMasterId])
+  @@index([planId])
+  @@index([festivalMasterId])
+  @@index([status])
+  @@index([priority])
+}
+
+// ──────────────────────────────────────────
+// TASK & FINANCE
+// ──────────────────────────────────────────
+
+model Task {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  status       String    @default("todo") // todo | in_progress | done
+  priority     String    @default("medium") // high | medium | low
+  dueDate      DateTime?
+  filmId       String?
+  submissionId String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  film       Film?       @relation(fields: [filmId], references: [id], onDelete: SetNull)
+  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([filmId])
+}
+
+model FinanceEntry {
+  id           String   @id @default(cuid())
+  type         String // expense | income
+  category     String // submission_fee | travel | award | screening_fee | other
+  amount       Float
+  currency     String   @default("EUR")
+  description  String?
+  date         DateTime
+  filmTitle    String?
+  festivalName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([date])
+  @@index([type])
+}

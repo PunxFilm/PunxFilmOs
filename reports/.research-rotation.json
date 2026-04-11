@@ -1,0 +1,19 @@
+{
+  "current_week": 1,
+  "current_region": "Europa Occidentale (Italia, Francia, Spagna, UK, Germania)",
+  "next_week": 2,
+  "next_region": "Europa Orientale e Scandinavia",
+  "rotation": [
+    {"week": 1, "region": "Europa Occidentale (Italia, Francia, Spagna, UK, Germania)"},
+    {"week": 2, "region": "Europa Orientale e Scandinavia"},
+    {"week": 3, "region": "Nord America (USA, Canada)"},
+    {"week": 4, "region": "Asia, America Latina, Oceania, Africa"}
+  ],
+  "last_run": "2026-04-10",
+  "last_run_stats": {
+    "imported": 12,
+    "updated": 0,
+    "excluded": 2,
+    "total_in_db": 12
+  }
+}
