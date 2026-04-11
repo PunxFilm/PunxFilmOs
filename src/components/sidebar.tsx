@@ -13,6 +13,7 @@ const navItems = [
   { href: "/finance", label: "Finanza" },
   { href: "/settings", label: "Impostazioni" },
   { href: "/import", label: "Import" },
+  { href: "/calendar", label: "Calendario" },
 ];
 
 export function Sidebar() {

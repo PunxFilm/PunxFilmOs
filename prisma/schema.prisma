@@ -230,6 +230,7 @@ model FestivalMaster {
   editions    FestivalEdition[]
   planEntries PlanEntry[]
   materialRequirements FestivalMaterialRequirement[]
+  waiverRequests       WaiverRequest[]
 
   @@index([classification])
   @@index([type])
@@ -315,6 +316,7 @@ model FestivalEdition {
   festivalMaster FestivalMaster @relation(fields: [festivalMasterId], references: [id], onDelete: Cascade)
   submissions    Submission[]
   planEntries    PlanEntry[]
+  waiverRequests WaiverRequest[]
 
   @@unique([festivalMasterId, year])
   @@index([festivalMasterId])
@@ -446,6 +448,29 @@ model Task {
   @@index([status])
   @@index([dueDate])
   @@index([filmId])
+}
+
+model WaiverRequest {
+  id               String    @id @default(cuid())
+  festivalMasterId String
+  festivalEditionId String?
+  status           String    @default("pending") // pending | sent | approved | rejected | expired
+  requestedAt      DateTime  @default(now())
+  respondedAt      DateTime?
+  waiverCode       String?
+  waiverType       String? // code | discount | free
+  discountPercentage Float?
+  templateUsed     String? // first_contact | follow_up | thank_you
+  emailSentTo      String?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  festivalMaster  FestivalMaster   @relation(fields: [festivalMasterId], references: [id], onDelete: Cascade)
+  festivalEdition FestivalEdition? @relation(fields: [festivalEditionId], references: [id])
+
+  @@index([festivalMasterId])
+  @@index([status])
 }
 
 model FinanceEntry {

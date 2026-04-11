@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
@@ -64,6 +64,25 @@ interface FestivalMasterDetail {
   editions: FestivalEdition[];
 }
 
+interface WaiverRequestRecord {
+  id: string;
+  status: string;
+  requestedAt: string;
+  respondedAt: string | null;
+  waiverCode: string | null;
+  waiverType: string | null;
+  templateUsed: string | null;
+  emailSentTo: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+const TEMPLATE_LABELS: Record<string, string> = {
+  first_contact: "Primo contatto",
+  follow_up: "Follow-up",
+  thank_you: "Ringraziamento",
+};
+
 const WAIVER_LABELS: Record<string, string> = {
   none: "Nessun waiver",
   code: "Codice waiver",
@@ -81,7 +100,159 @@ export default function FestivalDetailPage() {
   const [savingRating, setSavingRating] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
 
+  // Waiver request state
+  const [waiverRequests, setWaiverRequests] = useState<WaiverRequestRecord[]>([]);
+  const [waiverLoading, setWaiverLoading] = useState(false);
+  const [showWaiverPanel, setShowWaiverPanel] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string; to: string } | null>(null);
+  const [generatingEmail, setGeneratingEmail] = useState(false);
+  const [sendingWaiver, setSendingWaiver] = useState(false);
+  const [approveDialogId, setApproveDialogId] = useState<string | null>(null);
+  const [approveCode, setApproveCode] = useState("");
+  const [approveType, setApproveType] = useState<string>("code");
+
   const festivalId = params.id as string;
+
+  const loadWaiverRequests = useCallback(async () => {
+    setWaiverLoading(true);
+    try {
+      const res = await fetch(`/api/waiver-requests?festivalMasterId=${festivalId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWaiverRequests(data);
+      }
+    } catch {
+      // silent
+    } finally {
+      setWaiverLoading(false);
+    }
+  }, [festivalId]);
+
+  const handleGenerateEmail = async (templateId: string) => {
+    setSelectedTemplate(templateId);
+    setGeneratingEmail(true);
+    setGeneratedEmail(null);
+    try {
+      const res = await fetch("/api/waiver-requests/generate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId, festivalMasterId: festivalId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGeneratedEmail(data);
+      } else {
+        toast("Errore nella generazione dell'email", "error");
+      }
+    } catch {
+      toast("Errore nella generazione dell'email", "error");
+    } finally {
+      setGeneratingEmail(false);
+    }
+  };
+
+  const handleSendWaiver = async () => {
+    if (!generatedEmail || !selectedTemplate) return;
+    setSendingWaiver(true);
+    try {
+      const res = await fetch("/api/waiver-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          festivalMasterId: festivalId,
+          status: "sent",
+          templateUsed: selectedTemplate,
+          emailSentTo: generatedEmail.to,
+        }),
+      });
+      if (res.ok) {
+        toast("Richiesta waiver registrata");
+        setShowWaiverPanel(false);
+        setGeneratedEmail(null);
+        setSelectedTemplate("");
+        loadWaiverRequests();
+        // Update festival master waiver status to request_pending
+        await fetch(`/api/festival-masters/${festivalId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ waiverType: "request_pending" }),
+        });
+        if (festival) {
+          setFestival({ ...festival, waiverType: "request_pending" });
+        }
+      } else {
+        toast("Errore nella creazione della richiesta", "error");
+      }
+    } catch {
+      toast("Errore nella creazione della richiesta", "error");
+    } finally {
+      setSendingWaiver(false);
+    }
+  };
+
+  const handleCopyEmail = () => {
+    if (!generatedEmail) return;
+    const text = `Subject: ${generatedEmail.subject}\n\n${generatedEmail.body}`;
+    navigator.clipboard.writeText(text).then(() => {
+      toast("Email copiata negli appunti");
+    });
+  };
+
+  const handleOpenMailto = () => {
+    if (!generatedEmail) return;
+    const mailto = `mailto:${encodeURIComponent(generatedEmail.to)}?subject=${encodeURIComponent(generatedEmail.subject)}&body=${encodeURIComponent(generatedEmail.body)}`;
+    window.open(mailto, "_blank");
+  };
+
+  const handleApproveWaiver = async (requestId: string) => {
+    try {
+      const res = await fetch(`/api/waiver-requests/${requestId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "approved",
+          waiverCode: approveCode || null,
+          waiverType: approveType,
+        }),
+      });
+      if (res.ok) {
+        toast("Waiver approvato");
+        setApproveDialogId(null);
+        setApproveCode("");
+        setApproveType("code");
+        loadWaiverRequests();
+        // Refresh festival data to reflect updated waiver status
+        const festRes = await fetch(`/api/festival-masters/${festivalId}`);
+        if (festRes.ok) {
+          const festData = await festRes.json();
+          setFestival(festData);
+        }
+      } else {
+        toast("Errore nell'approvazione", "error");
+      }
+    } catch {
+      toast("Errore nell'approvazione", "error");
+    }
+  };
+
+  const handleRejectWaiver = async (requestId: string) => {
+    try {
+      const res = await fetch(`/api/waiver-requests/${requestId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "rejected" }),
+      });
+      if (res.ok) {
+        toast("Richiesta segnata come rifiutata");
+        loadWaiverRequests();
+      } else {
+        toast("Errore nell'aggiornamento", "error");
+      }
+    } catch {
+      toast("Errore nell'aggiornamento", "error");
+    }
+  };
 
   useEffect(() => {
     fetch(`/api/festival-masters/${festivalId}`)
@@ -93,6 +264,10 @@ export default function FestivalDetailPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [festivalId]);
+
+  useEffect(() => {
+    loadWaiverRequests();
+  }, [loadWaiverRequests]);
 
   const handleDelete = async () => {
     if (
@@ -410,6 +585,206 @@ export default function FestivalDetailPage() {
                 <p className="whitespace-pre-wrap">{festival.punxHistory}</p>
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Waiver Section */}
+      <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Waiver</h2>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Stato attuale:{" "}
+              <span className="font-medium">
+                {WAIVER_LABELS[festival.waiverType] || festival.waiverType}
+              </span>
+              {festival.waiverDetails && (
+                <span> - {festival.waiverDetails}</span>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setShowWaiverPanel(!showWaiverPanel);
+              setGeneratedEmail(null);
+              setSelectedTemplate("");
+            }}
+            className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            {showWaiverPanel ? "Chiudi" : "Richiedi Waiver"}
+          </button>
+        </div>
+
+        {/* Inline waiver request panel */}
+        {showWaiverPanel && (
+          <div className="border border-[var(--border)] rounded-lg p-4 bg-[var(--secondary)] space-y-4">
+            <p className="text-sm font-medium">Seleziona template email</p>
+            <div className="flex gap-2">
+              {[
+                { id: "first_contact", label: "Primo contatto" },
+                { id: "follow_up", label: "Follow-up" },
+                { id: "thank_you", label: "Ringraziamento" },
+              ].map((tpl) => (
+                <button
+                  key={tpl.id}
+                  onClick={() => handleGenerateEmail(tpl.id)}
+                  disabled={generatingEmail}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    selectedTemplate === tpl.id
+                      ? "bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)]"
+                      : "bg-[var(--card)] text-[var(--foreground)] border-[var(--border)] hover:bg-[var(--muted)]"
+                  } disabled:opacity-50`}
+                >
+                  {tpl.label}
+                </button>
+              ))}
+            </div>
+
+            {generatingEmail && (
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Generazione email in corso...
+              </p>
+            )}
+
+            {generatedEmail && (
+              <div className="space-y-3">
+                <div className="text-sm">
+                  <p className="text-[var(--muted-foreground)]">Destinatario</p>
+                  <p className="font-medium">{generatedEmail.to || "Nessuna email trovata"}</p>
+                </div>
+                <div className="text-sm">
+                  <p className="text-[var(--muted-foreground)]">Oggetto</p>
+                  <p className="font-medium">{generatedEmail.subject}</p>
+                </div>
+                <div className="text-sm">
+                  <p className="text-[var(--muted-foreground)] mb-1">Corpo email</p>
+                  <pre className="whitespace-pre-wrap text-sm bg-[var(--card)] border border-[var(--border)] rounded-lg p-3 max-h-64 overflow-y-auto">
+                    {generatedEmail.body}
+                  </pre>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCopyEmail}
+                    className="px-4 py-2 bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                  >
+                    Copia email
+                  </button>
+                  <button
+                    onClick={handleOpenMailto}
+                    className="px-4 py-2 bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-lg text-sm font-medium hover:bg-[var(--muted)] transition-colors"
+                  >
+                    Apri Mail
+                  </button>
+                  <button
+                    onClick={handleSendWaiver}
+                    disabled={sendingWaiver}
+                    className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {sendingWaiver ? "Registrazione..." : "Registra come inviata"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Waiver requests list */}
+        {waiverLoading ? (
+          <p className="text-sm text-[var(--muted-foreground)]">Caricamento richieste...</p>
+        ) : waiverRequests.length === 0 ? (
+          <p className="text-sm text-[var(--muted-foreground)]">
+            Nessuna richiesta waiver registrata.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {waiverRequests.map((req) => (
+              <div
+                key={req.id}
+                className="flex items-center justify-between border border-[var(--border)] rounded-lg p-3 text-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <StatusBadge value={req.status} />
+                  <span className="text-[var(--muted-foreground)]">
+                    {formatDate(req.requestedAt)}
+                  </span>
+                  {req.templateUsed && (
+                    <span className="text-[var(--muted-foreground)]">
+                      {TEMPLATE_LABELS[req.templateUsed] || req.templateUsed}
+                    </span>
+                  )}
+                  {req.emailSentTo && (
+                    <span className="text-[var(--muted-foreground)] break-all">
+                      {req.emailSentTo}
+                    </span>
+                  )}
+                  {req.waiverCode && (
+                    <span className="font-mono bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded text-xs">
+                      {req.waiverCode}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {req.status === "sent" && (
+                    <>
+                      {approveDialogId === req.id ? (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={approveType}
+                            onChange={(e) => setApproveType(e.target.value)}
+                            className="px-2 py-1 border border-[var(--border)] rounded text-xs bg-[var(--card)]"
+                          >
+                            <option value="code">Codice</option>
+                            <option value="agreement">Accordo</option>
+                            <option value="free">Gratuito</option>
+                          </select>
+                          {approveType === "code" && (
+                            <input
+                              type="text"
+                              placeholder="Codice waiver"
+                              value={approveCode}
+                              onChange={(e) => setApproveCode(e.target.value)}
+                              className="px-2 py-1 border border-[var(--border)] rounded text-xs bg-[var(--card)] w-32"
+                            />
+                          )}
+                          <button
+                            onClick={() => handleApproveWaiver(req.id)}
+                            className="px-2 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:opacity-90"
+                          >
+                            Conferma
+                          </button>
+                          <button
+                            onClick={() => {
+                              setApproveDialogId(null);
+                              setApproveCode("");
+                              setApproveType("code");
+                            }}
+                            className="px-2 py-1 text-xs text-[var(--muted-foreground)] hover:underline"
+                          >
+                            Annulla
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setApproveDialogId(req.id)}
+                            className="px-2 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:opacity-90"
+                          >
+                            Waiver ricevuto
+                          </button>
+                          <button
+                            onClick={() => handleRejectWaiver(req.id)}
+                            className="px-2 py-1 bg-[var(--destructive)] text-[var(--destructive-foreground)] rounded text-xs font-medium hover:opacity-90"
+                          >
+                            Rifiutato
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

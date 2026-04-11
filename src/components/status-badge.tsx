@@ -23,9 +23,11 @@ const colors: Record<string, string> = {
   official_selection: "bg-purple-100 text-purple-800",
   competition: "bg-blue-100 text-blue-800",
   special_mention: "bg-amber-100 text-amber-800",
-  // Plan entry status
+  // Plan entry / waiver request status
   pending: "bg-amber-100 text-amber-800",
+  sent: "bg-blue-100 text-blue-800",
   approved: "bg-emerald-100 text-emerald-800",
+  expired: "bg-gray-100 text-gray-600",
   subscribed: "bg-purple-100 text-purple-800",
   // Premiere levels
   world: "bg-indigo-100 text-indigo-800",
@@ -65,9 +67,11 @@ const labels: Record<string, string> = {
   official_selection: "Selezione Ufficiale",
   competition: "Concorso",
   special_mention: "Menzione Speciale",
-  // Plan entry status
+  // Plan entry / waiver request status
   pending: "Da valutare",
+  sent: "Inviata",
   approved: "Approvato",
+  expired: "Scaduta",
   subscribed: "Iscritto",
   // Premiere levels
   world: "World Premiere",
