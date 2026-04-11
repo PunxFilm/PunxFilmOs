@@ -5,6 +5,8 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { CompletenessBar } from "@/components/completeness-bar";
+import { computeMasterCompleteness } from "@/lib/completeness";
 import { formatDate, formatCurrency, computeEditionStatus } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 
@@ -26,6 +28,33 @@ interface FestivalEdition {
   prizeCash: number | null;
   prizeDescription: string | null;
   status: string | null;
+  submissions?: SubmissionRecord[];
+}
+
+interface SubmissionRecord {
+  id: string;
+  status: string | null;
+  platform: string | null;
+  feeAmount: number | null;
+  feeCurrency: string | null;
+  film: {
+    id: string;
+    title: string;
+  } | null;
+}
+
+interface PlanEntryRecord {
+  id: string;
+  priority: string | null;
+  score: number | null;
+  status: string | null;
+  plan: {
+    id: string;
+    film: {
+      id: string;
+      title: string;
+    } | null;
+  } | null;
 }
 
 interface FestivalMasterDetail {
@@ -41,14 +70,23 @@ interface FestivalMasterDetail {
   focus: string | null;
   maxMinutes: number | null;
   acceptedGenres: string | null;
+  acceptedThemes: string | null;
   acceptsFirstWork: boolean;
+  directorRequirements: string | null;
+  maxYearsProduction: number | null;
   punxRating: number | null;
   qualityScore: number | null;
   academyQualifying: boolean;
   baftaQualifying: boolean;
   efaQualifying: boolean;
+  goyaQualifying: boolean;
+  canadianScreenQualifying: boolean;
+  shortFilmConferenceMember: boolean;
+  qualifying: string | null;
   screeningType: string | null;
   industry: boolean;
+  travelSupport: string | null;
+  hospitalitySupport: string | null;
   contactName: string | null;
   contactRole: string | null;
   contactTelephone: string | null;
@@ -61,7 +99,16 @@ interface FestivalMasterDetail {
   waiverDetails: string | null;
   submissionPlatform: string | null;
   submissionUrlBase: string | null;
+  regulationsUrl: string | null;
+  foundedYear: number | null;
+  openingDate: string | null;
+  canonicalName: string | null;
+  dataConfidenceScore: number | null;
+  verificationStatus: string | null;
+  lastVerifiedAt: string | null;
+  verificationNotes: string | null;
   editions: FestivalEdition[];
+  planEntries?: PlanEntryRecord[];
 }
 
 interface WaiverRequestRecord {
@@ -88,6 +135,12 @@ const WAIVER_LABELS: Record<string, string> = {
   code: "Codice waiver",
   agreement: "Accordo",
   request_pending: "Richiesta in corso",
+};
+
+const VERIFICATION_LABELS: Record<string, string> = {
+  unverified: "Non verificato",
+  verified: "Verificato",
+  needs_review: "Da rivedere",
 };
 
 export default function FestivalDetailPage() {
@@ -254,6 +307,32 @@ export default function FestivalDetailPage() {
     }
   };
 
+  const handleMarkVerified = async () => {
+    if (!festival) return;
+    try {
+      const res = await fetch(`/api/festival-masters/${festivalId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          verificationStatus: "verified",
+          lastVerifiedAt: new Date().toISOString(),
+        }),
+      });
+      if (res.ok) {
+        setFestival({
+          ...festival,
+          verificationStatus: "verified",
+          lastVerifiedAt: new Date().toISOString(),
+        });
+        toast("Festival segnato come verificato");
+      } else {
+        toast("Errore nell'aggiornamento", "error");
+      }
+    } catch {
+      toast("Errore nell'aggiornamento", "error");
+    }
+  };
+
   useEffect(() => {
     fetch(`/api/festival-masters/${festivalId}`)
       .then((res) => {
@@ -345,6 +424,19 @@ export default function FestivalDetailPage() {
     festival.contactEmailTechnical ||
     festival.contactTelephone;
 
+  const completeness = computeMasterCompleteness(festival as unknown as Record<string, unknown>);
+
+  // Flatten all submissions from all editions
+  const allSubmissions = (festival.editions ?? []).flatMap((edition) =>
+    (edition.submissions ?? []).map((sub) => ({
+      ...sub,
+      editionYear: edition.year,
+    }))
+  );
+
+  // Plan entries
+  const planEntries = festival.planEntries ?? [];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -383,6 +475,32 @@ export default function FestivalDetailPage() {
             </div>
             {festival.punxRating && (
               <span className="text-sm font-medium">{festival.punxRating}/5</span>
+            )}
+          </div>
+          {/* Completeness & Verification */}
+          <div className="flex items-center gap-4 mt-3">
+            <div className="w-48">
+              <p className="text-xs text-[var(--muted-foreground)] mb-1">Completezza dati</p>
+              <CompletenessBar
+                score={completeness.score}
+                size="md"
+                showLabel
+                missingFields={completeness.groups.flatMap((g) => g.missingFields)}
+              />
+            </div>
+            {festival.verificationStatus && (
+              <div>
+                <p className="text-xs text-[var(--muted-foreground)] mb-1">Verifica</p>
+                <StatusBadge value={festival.verificationStatus} />
+              </div>
+            )}
+            {festival.verificationStatus !== "verified" && (
+              <button
+                onClick={handleMarkVerified}
+                className="mt-3 px-3 py-1.5 text-xs font-medium border border-emerald-300 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors"
+              >
+                Segna come verificato
+              </button>
             )}
           </div>
         </div>
@@ -589,6 +707,201 @@ export default function FestivalDetailPage() {
         )}
       </div>
 
+      {/* Requisiti Film */}
+      {(festival.acceptedGenres || festival.acceptedThemes || festival.acceptsFirstWork || festival.directorRequirements || festival.maxYearsProduction) && (
+        <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-3">
+          <h2 className="text-lg font-semibold">Requisiti Film</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            {festival.acceptedGenres && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Generi accettati</p>
+                <p>{festival.acceptedGenres}</p>
+              </div>
+            )}
+            {festival.acceptedThemes && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Temi</p>
+                <p>{festival.acceptedThemes}</p>
+              </div>
+            )}
+            {festival.acceptsFirstWork && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Opera prima</p>
+                <p>Accetta opera prima</p>
+              </div>
+            )}
+            {festival.directorRequirements && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Requisiti regista</p>
+                <p>{festival.directorRequirements}</p>
+              </div>
+            )}
+            {festival.maxYearsProduction != null && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Max anni produzione</p>
+                <p>{festival.maxYearsProduction} anni</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Supporto */}
+      {(festival.travelSupport || festival.hospitalitySupport) && (
+        <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-3">
+          <h2 className="text-lg font-semibold">Supporto</h2>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {festival.travelSupport && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Supporto viaggio</p>
+                <p>{festival.travelSupport}</p>
+              </div>
+            )}
+            {festival.hospitalitySupport && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Ospitalita</p>
+                <p>{festival.hospitalitySupport}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Links */}
+      {(festival.submissionUrlBase || festival.regulationsUrl) && (
+        <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-3">
+          <h2 className="text-lg font-semibold">Links</h2>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {festival.submissionUrlBase && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">URL Iscrizione</p>
+                <a
+                  href={festival.submissionUrlBase.startsWith("http") ? festival.submissionUrlBase : `https://${festival.submissionUrlBase}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--primary)] hover:underline break-all"
+                >
+                  {festival.submissionUrlBase}
+                </a>
+              </div>
+            )}
+            {festival.regulationsUrl && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Regolamento</p>
+                <a
+                  href={festival.regulationsUrl.startsWith("http") ? festival.regulationsUrl : `https://${festival.regulationsUrl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--primary)] hover:underline break-all"
+                >
+                  {festival.regulationsUrl}
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Qualificazioni extra */}
+      {(festival.goyaQualifying || festival.canadianScreenQualifying || festival.shortFilmConferenceMember || festival.qualifying) && (
+        <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-3">
+          <h2 className="text-lg font-semibold">Qualificazioni extra</h2>
+          <div className="flex flex-wrap gap-2">
+            {festival.goyaQualifying && (
+              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                Goya Qualifying
+              </span>
+            )}
+            {festival.canadianScreenQualifying && (
+              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                Canadian Screen Qualifying
+              </span>
+            )}
+            {festival.shortFilmConferenceMember && (
+              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                Short Film Conference Member
+              </span>
+            )}
+            {festival.qualifying && (
+              <div className="w-full mt-2 text-sm">
+                <p className="text-[var(--muted-foreground)]">Altre qualificazioni</p>
+                <p>{festival.qualifying}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Meta */}
+      {(festival.foundedYear || festival.openingDate || festival.canonicalName || festival.dataConfidenceScore != null) && (
+        <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-3">
+          <h2 className="text-lg font-semibold">Meta</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            {festival.foundedYear && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Anno fondazione</p>
+                <p>{festival.foundedYear}</p>
+              </div>
+            )}
+            {festival.openingDate && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Data apertura</p>
+                <p>{formatDate(festival.openingDate)}</p>
+              </div>
+            )}
+            {festival.canonicalName && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Nome canonico</p>
+                <p>{festival.canonicalName}</p>
+              </div>
+            )}
+            {festival.dataConfidenceScore != null && (
+              <div>
+                <p className="text-[var(--muted-foreground)]">Confidenza dati</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-24 h-2 rounded-full bg-gray-200 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        festival.dataConfidenceScore >= 70
+                          ? "bg-emerald-500"
+                          : festival.dataConfidenceScore >= 40
+                            ? "bg-amber-500"
+                            : "bg-red-500"
+                      }`}
+                      style={{ width: `${festival.dataConfidenceScore}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium">{festival.dataConfidenceScore}/100</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Verifica */}
+      <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-3">
+        <h2 className="text-lg font-semibold">Verifica</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <p className="text-[var(--muted-foreground)]">Stato verifica</p>
+            <StatusBadge value={festival.verificationStatus || "unverified"} />
+          </div>
+          {festival.lastVerifiedAt && (
+            <div>
+              <p className="text-[var(--muted-foreground)]">Ultima verifica</p>
+              <p>{formatDate(festival.lastVerifiedAt)}</p>
+            </div>
+          )}
+          {festival.verificationNotes && (
+            <div className="col-span-2 md:col-span-3">
+              <p className="text-[var(--muted-foreground)]">Note verifica</p>
+              <p className="whitespace-pre-wrap">{festival.verificationNotes}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Waiver Section */}
       <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-4">
         <div className="flex items-center justify-between">
@@ -788,6 +1101,104 @@ export default function FestivalDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Storico Iscrizioni */}
+      {allSubmissions.length > 0 && (
+        <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Storico Iscrizioni</h2>
+          <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-[var(--secondary)]">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium">Film</th>
+                  <th className="text-left px-4 py-3 font-medium">Anno</th>
+                  <th className="text-left px-4 py-3 font-medium">Status</th>
+                  <th className="text-left px-4 py-3 font-medium">Piattaforma</th>
+                  <th className="text-left px-4 py-3 font-medium">Fee</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {allSubmissions.map((sub) => (
+                  <tr key={sub.id} className="hover:bg-[var(--secondary)] transition-colors">
+                    <td className="px-4 py-3">
+                      {sub.film ? (
+                        <Link
+                          href={`/films/${sub.film.id}`}
+                          className="font-medium text-[var(--primary)] hover:underline"
+                        >
+                          {sub.film.title}
+                        </Link>
+                      ) : (
+                        <span className="text-[var(--muted-foreground)]">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">{sub.editionYear}</td>
+                    <td className="px-4 py-3">
+                      {sub.status ? <StatusBadge value={sub.status} /> : "—"}
+                    </td>
+                    <td className="px-4 py-3">{sub.platform || "—"}</td>
+                    <td className="px-4 py-3">
+                      {sub.feeAmount != null
+                        ? formatCurrency(sub.feeAmount, sub.feeCurrency || "EUR")
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Piani Collegati */}
+      {planEntries.length > 0 && (
+        <div className="border border-[var(--border)] rounded-lg bg-[var(--card)] p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Piani Collegati</h2>
+          <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-[var(--secondary)]">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium">Film</th>
+                  <th className="text-left px-4 py-3 font-medium">Priorita</th>
+                  <th className="text-left px-4 py-3 font-medium">Score</th>
+                  <th className="text-left px-4 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {planEntries.map((entry) => (
+                  <tr key={entry.id} className="hover:bg-[var(--secondary)] transition-colors">
+                    <td className="px-4 py-3">
+                      {entry.plan?.film ? (
+                        <Link
+                          href={`/strategies/${entry.plan.id}`}
+                          className="font-medium text-[var(--primary)] hover:underline"
+                        >
+                          {entry.plan.film.title}
+                        </Link>
+                      ) : (
+                        <span className="text-[var(--muted-foreground)]">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {entry.priority ? <StatusBadge value={entry.priority} /> : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {entry.score != null ? (
+                        <span className="font-medium">{entry.score}</span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {entry.status ? <StatusBadge value={entry.status} /> : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Editions Section */}
       <div className="space-y-4">

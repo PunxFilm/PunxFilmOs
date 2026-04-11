@@ -14,7 +14,7 @@ export function FormField({
 }: {
   label: string;
   name: string;
-  type?: "text" | "number" | "date" | "select" | "textarea";
+  type?: "text" | "number" | "date" | "select" | "textarea" | "checkbox";
   value: string | number;
   onChange: (name: string, value: string | number) => void;
   required?: boolean;
@@ -26,6 +26,25 @@ export function FormField({
   const baseClass = `w-full px-3 py-2 rounded-lg border bg-[var(--background)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] ${
     error ? "border-[var(--destructive)]" : "border-[var(--border)]"
   }`;
+
+  if (type === "checkbox") {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          id={name}
+          name={name}
+          type="checkbox"
+          checked={value === 1 || value === "1" || value === true as unknown as string | number}
+          onChange={(e) => onChange(name, e.target.checked ? 1 : 0)}
+          className="w-4 h-4 rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--ring)]"
+        />
+        <label htmlFor={name} className="text-sm font-medium cursor-pointer">
+          {label}
+        </label>
+        {error && <span className="text-xs text-[var(--destructive)]">{error}</span>}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-1">

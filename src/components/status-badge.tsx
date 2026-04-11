@@ -34,6 +34,10 @@ const colors: Record<string, string> = {
   international: "bg-blue-100 text-blue-800",
   european: "bg-teal-100 text-teal-800",
   national: "bg-slate-100 text-slate-700",
+  // Verification status
+  unverified: "bg-gray-100 text-gray-600",
+  verified: "bg-emerald-100 text-emerald-800",
+  needs_review: "bg-amber-100 text-amber-800",
   // Plan entry roles
   premiere: "bg-amber-100 text-amber-800",
   queue: "bg-[var(--muted)] text-[var(--muted-foreground)]",
@@ -73,6 +77,10 @@ const labels: Record<string, string> = {
   approved: "Approvato",
   expired: "Scaduta",
   subscribed: "Iscritto",
+  // Verification
+  unverified: "Non verificato",
+  verified: "Verificato",
+  needs_review: "Da rivedere",
   // Premiere levels
   world: "World Premiere",
   international: "Int'l Premiere",

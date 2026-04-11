@@ -8,8 +8,26 @@ export async function GET(
   const festival = await prisma.festivalMaster.findUnique({
     where: { id: params.id },
     include: {
-      editions: { orderBy: { year: "desc" } },
+      editions: {
+        orderBy: { year: "desc" },
+        include: {
+          submissions: {
+            include: { film: { select: { id: true, titleOriginal: true } } },
+          },
+        },
+      },
+      planEntries: {
+        include: {
+          plan: {
+            include: {
+              film: { select: { id: true, titleOriginal: true } },
+            },
+          },
+        },
+        take: 20,
+      },
       _count: { select: { editions: true, planEntries: true } },
+      waiverRequests: { orderBy: { createdAt: "desc" }, take: 5 },
     },
   });
   if (!festival) {

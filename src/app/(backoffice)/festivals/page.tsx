@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { CompletenessBar } from "@/components/completeness-bar";
 import { computeEditionStatus, formatDate } from "@/lib/utils";
 
 interface LatestEdition {
@@ -27,6 +28,7 @@ interface FestivalMaster {
   type: string | null;
   academyQualifying: boolean;
   punxRating: number | null;
+  completenessScore?: number;
   _count: { editions: number };
   editions: LatestEdition[];
 }
@@ -73,6 +75,7 @@ export default function FestivalsPage() {
   const [classification, setClassification] = useState("");
   const [type, setType] = useState("");
   const [country, setCountry] = useState("");
+  const [verificationFilter, setVerificationFilter] = useState("");
 
   const buildUrl = useCallback(
     (currentOffset: number) => {
@@ -83,9 +86,10 @@ export default function FestivalsPage() {
       if (classification) params.set("classification", classification);
       if (type) params.set("type", type);
       if (country) params.set("country", country);
+      if (verificationFilter) params.set("verificationStatus", verificationFilter);
       return `/api/festival-masters?${params.toString()}`;
     },
-    [search, classification, type, country]
+    [search, classification, type, country, verificationFilter]
   );
 
   // Fetch first page whenever filters change
@@ -141,6 +145,12 @@ export default function FestivalsPage() {
         action={{ label: "Nuovo Festival", href: "/festivals/new" }}
       />
 
+      <div className="flex justify-end">
+        <Link href="/festivals/analytics" className="text-sm text-[var(--primary)] hover:underline">
+          Analytics Festival →
+        </Link>
+      </div>
+
       {/* Search + Filters */}
       <div className="flex gap-3 flex-wrap">
         <input
@@ -186,6 +196,16 @@ export default function FestivalsPage() {
             </option>
           ))}
         </select>
+        <select
+          value={verificationFilter}
+          onChange={(e) => setVerificationFilter(e.target.value)}
+          className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm"
+        >
+          <option value="">Verifica: Tutti</option>
+          <option value="unverified">Non verificato</option>
+          <option value="verified">Verificato</option>
+          <option value="needs_review">Da rivedere</option>
+        </select>
       </div>
 
       {/* Table or empty */}
@@ -215,6 +235,7 @@ export default function FestivalsPage() {
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="text-left px-4 py-3 font-medium">Deadline</th>
                   <th className="text-left px-4 py-3 font-medium">Rating</th>
+                  <th className="text-left px-4 py-3 font-medium">Completezza</th>
                   <th className="text-left px-4 py-3 font-medium">Edizioni</th>
                 </tr>
               </thead>
@@ -309,6 +330,9 @@ export default function FestivalsPage() {
                         ) : (
                           "—"
                         )}
+                      </td>
+                      <td className="px-4 py-3 min-w-[120px]">
+                        <CompletenessBar score={f.completenessScore || 0} size="sm" showLabel />
                       </td>
                       <td className="px-4 py-3">{f._count.editions}</td>
                     </tr>

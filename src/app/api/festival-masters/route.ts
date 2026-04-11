@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { computeMasterCompleteness } from "@/lib/completeness";
 import { z } from "zod";
 
 const festivalMasterCreateSchema = z.object({
@@ -80,6 +81,8 @@ export async function GET(request: Request) {
   if (classification) where.classification = classification;
   if (type) where.type = type;
   if (country) where.country = country;
+  const verificationStatus = searchParams.get("verificationStatus") || "";
+  if (verificationStatus) where.verificationStatus = verificationStatus;
 
   const [festivals, total] = await Promise.all([
     prisma.festivalMaster.findMany({
@@ -109,7 +112,12 @@ export async function GET(request: Request) {
     prisma.festivalMaster.count({ where }),
   ]);
 
-  return NextResponse.json({ festivals, total });
+  const enriched = festivals.map((f) => ({
+    ...f,
+    completenessScore: computeMasterCompleteness(f as Record<string, unknown>).score,
+  }));
+
+  return NextResponse.json({ festivals: enriched, total });
 }
 
 export async function POST(request: Request) {
