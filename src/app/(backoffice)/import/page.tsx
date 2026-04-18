@@ -7,6 +7,7 @@ import { WizardStepper } from "@/components/wizard-stepper";
 import { FormField } from "@/components/form-field";
 import { StatusBadge } from "@/components/status-badge";
 import { AiLoading } from "@/components/ai-loading";
+import { GoogleDrivePicker } from "@/components/google-drive-picker";
 import { useToast } from "@/components/toast";
 import { formatDuration } from "@/lib/utils";
 
@@ -654,24 +655,40 @@ export default function ImportWizardPage() {
               <label className="block text-sm font-medium">
                 Aggiungi PDF (Scheda Film, Strategia, Iscrizioni, Coda, Report...)
               </label>
-              <input
-                type="file"
-                accept=".pdf"
-                multiple
-                onChange={(e) => {
-                  const newFiles = Array.from(e.target.files || []);
-                  if (newFiles.length === 0) return;
-                  setPdfFiles((prev) => {
-                    // Avoid duplicates by name
-                    const existingNames = new Set(prev.map((f) => f.name));
-                    const unique = newFiles.filter((f) => !existingNames.has(f.name));
-                    return [...prev, ...unique];
-                  });
-                  // Reset input so same file can be re-selected if removed
-                  e.target.value = "";
-                }}
-                className="w-full px-3 py-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] text-sm file:mr-3 file:px-3 file:py-1 file:rounded file:border-0 file:bg-[var(--secondary)] file:text-sm file:font-medium"
-              />
+              <div className="flex flex-col gap-2">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  multiple
+                  onChange={(e) => {
+                    const newFiles = Array.from(e.target.files || []);
+                    if (newFiles.length === 0) return;
+                    setPdfFiles((prev) => {
+                      const existingNames = new Set(prev.map((f) => f.name));
+                      const unique = newFiles.filter((f) => !existingNames.has(f.name));
+                      return [...prev, ...unique];
+                    });
+                    e.target.value = "";
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] text-sm file:mr-3 file:px-3 file:py-1 file:rounded file:border-0 file:bg-[var(--secondary)] file:text-sm file:font-medium"
+                />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[var(--muted-foreground)]">oppure</span>
+                  <GoogleDrivePicker
+                    mimeTypes="application/pdf"
+                    buttonLabel="Importa PDF da Google Drive"
+                    onFilesPicked={(files) => {
+                      setPdfFiles((prev) => {
+                        const existingNames = new Set(prev.map((f) => f.name));
+                        const unique = files.filter((f) => !existingNames.has(f.name));
+                        return [...prev, ...unique];
+                      });
+                      toast(`${files.length} file importati da Drive`);
+                    }}
+                    onError={(msg) => toast(msg, "error")}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Show uploaded files with remove button */}
@@ -729,15 +746,30 @@ export default function ImportWizardPage() {
               <label className="block text-sm font-medium">
                 File CSV/Excel <span className="text-[var(--accent)]">*</span>
               </label>
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  setCsvFile(file);
-                }}
-                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm file:mr-3 file:px-3 file:py-1 file:rounded file:border-0 file:bg-[var(--secondary)] file:text-sm file:font-medium"
-              />
+              <div className="flex flex-col gap-2">
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setCsvFile(file);
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm file:mr-3 file:px-3 file:py-1 file:rounded file:border-0 file:bg-[var(--secondary)] file:text-sm file:font-medium"
+                />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[var(--muted-foreground)]">oppure</span>
+                  <GoogleDrivePicker
+                    mimeTypes="text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.google-apps.spreadsheet"
+                    multiSelect={false}
+                    buttonLabel="Importa CSV/Excel da Google Drive"
+                    onFilesPicked={(files) => {
+                      if (files[0]) setCsvFile(files[0]);
+                      toast("File importato da Drive");
+                    }}
+                    onError={(msg) => toast(msg, "error")}
+                  />
+                </div>
+              </div>
               {csvFile && (
                 <p className="text-xs text-[var(--muted-foreground)]">
                   {csvFile.name} ({(csvFile.size / 1024).toFixed(0)} KB)
