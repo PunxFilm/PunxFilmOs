@@ -728,9 +728,9 @@ export default function ImportWizardPage() {
                     type="button"
                     onClick={handleParsePdf}
                     disabled={pdfFiles.length === 0 && !filmPdfFile}
-                    className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    className="btn btn-primary"
                   >
-                    Analizza {pdfFiles.length > 1 ? `${pdfFiles.length} documenti` : "documento"} con AI
+                    ✨ Analizza {pdfFiles.length > 1 ? `${pdfFiles.length} documenti` : "documento"} con AI
                   </button>
                 )}
               </div>
@@ -785,9 +785,9 @@ export default function ImportWizardPage() {
                     type="button"
                     onClick={handleParseCsv}
                     disabled={!csvFile}
-                    className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    className="btn btn-primary"
                   >
-                    Analizza con AI
+                    ✨ Analizza con AI
                   </button>
                 )}
               </div>
