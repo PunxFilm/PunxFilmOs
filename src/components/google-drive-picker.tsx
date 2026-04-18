@@ -22,7 +22,7 @@
  *     simone.rossi121@gmail.com come test user (finché l'app è "Testing").
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 // Tipi minimi — le API Google non hanno types ufficiali stabili
 type TokenClient = {
@@ -112,6 +112,7 @@ export function GoogleDrivePicker({
   onError,
 }: GoogleDrivePickerProps) {
   const [loading, setLoading] = useState(false);
+  const [scriptsReady, setScriptsReady] = useState(false);
   const tokenRef = useRef<string | null>(null);
   const tokenClientRef = useRef<TokenClient | null>(null);
 
@@ -119,6 +120,30 @@ export function GoogleDrivePicker({
   const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
   const APP_ID = process.env.NEXT_PUBLIC_GOOGLE_APP_ID;
   const configured = Boolean(CLIENT_ID && API_KEY && APP_ID);
+
+  // Precarica gli script al mount: senza await nel click handler il browser
+  // preserva la user-gesture e non blocca il popup OAuth.
+  useEffect(() => {
+    if (!configured) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await Promise.all([loadScript(PICKER_API), loadScript(GIS_URL)]);
+        await new Promise<void>((resolve) => {
+          if (!window.gapi) return resolve();
+          window.gapi.load("picker", () => resolve());
+        });
+        if (!cancelled) setScriptsReady(true);
+      } catch (e) {
+        if (!cancelled) {
+          onError?.(e instanceof Error ? e.message : "Errore caricamento Google API");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [configured, onError]);
 
   const downloadDriveFile = useCallback(
     async (doc: PickerDoc, token: string): Promise<File> => {
@@ -171,23 +196,21 @@ export function GoogleDrivePicker({
     [API_KEY, APP_ID, mimeTypes, multiSelect, onFilesPicked, onError, downloadDriveFile]
   );
 
-  const handleClick = useCallback(async () => {
+  const handleClick = useCallback(() => {
     if (!configured) {
       onError?.(
         "Google Drive non configurato. Mancano le env vars NEXT_PUBLIC_GOOGLE_CLIENT_ID, NEXT_PUBLIC_GOOGLE_API_KEY, NEXT_PUBLIC_GOOGLE_APP_ID."
       );
       return;
     }
+    if (!scriptsReady || !window.google?.accounts?.oauth2) {
+      onError?.("Google API non ancora caricate, riprova tra un istante.");
+      return;
+    }
     setLoading(true);
     try {
-      await Promise.all([loadScript(PICKER_API), loadScript(GIS_URL)]);
-      await new Promise<void>((resolve) => {
-        if (!window.gapi) return resolve(); // non dovrebbe succedere
-        window.gapi.load("picker", () => resolve());
-      });
-
       if (!tokenClientRef.current) {
-        tokenClientRef.current = window.google!.accounts!.oauth2.initTokenClient({
+        tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
           client_id: CLIENT_ID!,
           scope: SCOPES,
           callback: (resp) => {
@@ -201,15 +224,15 @@ export function GoogleDrivePicker({
           },
         });
       }
-      // re-use token if fresh enough? GIS access tokens dura ~1h, ma richiamare è zero-cost se consent dato
+      // Chiamata sincrona dentro l'handler click → popup OAuth non viene bloccato
       tokenClientRef.current.requestAccessToken({
         prompt: tokenRef.current ? "" : "consent",
       });
     } catch (e) {
-      onError?.(e instanceof Error ? e.message : "Errore caricamento Google API");
+      onError?.(e instanceof Error ? e.message : "Errore apertura Google Drive");
       setLoading(false);
     }
-  }, [CLIENT_ID, configured, onError, openPicker]);
+  }, [CLIENT_ID, configured, scriptsReady, onError, openPicker]);
 
   return (
     <button
