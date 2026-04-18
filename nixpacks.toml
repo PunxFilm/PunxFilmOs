@@ -5,7 +5,10 @@ nixPkgs = ["nodejs_20", "openssl", "poppler_utils"]
 cmds = ["npm ci --include=dev"]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = [
+  "sed -i 's/provider = \"sqlite\"/provider = \"postgresql\"/' prisma/schema.prisma",
+  "npm run build"
+]
 
 [start]
 cmd = "npm run start"
