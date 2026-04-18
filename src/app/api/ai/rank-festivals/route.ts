@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { anthropic, AI_MODEL, MAX_TOKENS, parseAIResponse } from "@/lib/ai";
+import { anthropic, AI_MODEL, MAX_TOKENS, parseAIResponse, JSON_PREFILL } from "@/lib/ai";
 import { buildFestivalRankingPrompt } from "@/lib/ai-prompts";
 
 export async function POST(request: Request) {
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       model: AI_MODEL,
       max_tokens: MAX_TOKENS,
       system,
-      messages: [{ role: "user", content: user }],
+      messages: [{ role: "user", content: user }, { role: "assistant", content: JSON_PREFILL }],
     });
 
     const content = response.content[0];
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     const result = parseAIResponse<{
       rankings: { festivalId: string; score: number; reasoning: string; warnings: string[] }[];
-    }>(content.text);
+    }>(content.text, true);
 
     // Arricchisci con priorità A/B/C e dati waiver
     const enriched = result.rankings.map((r) => {

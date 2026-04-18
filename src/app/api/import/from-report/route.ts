@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { anthropic, AI_MODEL, parseAIResponse } from "@/lib/ai";
+import { anthropic, AI_MODEL, parseAIResponse, JSON_PREFILL } from "@/lib/ai";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       model: AI_MODEL,
       max_tokens: 8192,
       system: PROMPT,
-      messages: [{ role: "user", content: text.slice(0, 20000) }],
+      messages: [{ role: "user", content: text.slice(0, 20000) }, { role: "assistant", content: JSON_PREFILL }],
     });
 
     const content = response.content[0];
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
           prizeDescription?: string;
         };
       }>;
-    }>(content.text);
+    }>(content.text, true);
 
     // Insert into DB
     let created = 0;

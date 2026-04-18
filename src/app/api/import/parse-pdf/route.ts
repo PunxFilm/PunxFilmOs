@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { anthropic, AI_MODEL, parseAIResponse } from "@/lib/ai";
+import { anthropic, AI_MODEL, parseAIResponse, JSON_PREFILL } from "@/lib/ai";
 import { exec } from "child_process";
 import { writeFile, unlink } from "fs/promises";
 import { join } from "path";
@@ -115,13 +115,16 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Send to AI
+      // Send to AI con prefill "{" per forzare JSON-only
       const systemPrompt = type === "film_sheet" ? FILM_SHEET_PROMPT : STRATEGY_PROMPT;
       const response = await anthropic.messages.create({
         model: AI_MODEL,
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
-        messages: [{ role: "user", content: text.slice(0, 15000) }], // Limit text length
+        messages: [
+          { role: "user", content: text.slice(0, 15000) },
+          { role: "assistant", content: JSON_PREFILL },
+        ],
       });
 
       const content = response.content[0];
@@ -130,8 +133,26 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const parsed = parseAIResponse<Record<string, unknown>>(content.text);
-      results.push({ fileName: file.name, type, data: parsed });
+      try {
+        const parsed = parseAIResponse<Record<string, unknown>>(content.text, true);
+        results.push({ fileName: file.name, type, data: parsed });
+      } catch (parseErr) {
+        console.error(
+          `JSON parse error for ${file.name}:`,
+          parseErr,
+          "\nRaw AI response:",
+          content.text.slice(0, 500)
+        );
+        results.push({
+          fileName: file.name,
+          type,
+          data: {
+            error: `Parse AI fallito: ${
+              parseErr instanceof Error ? parseErr.message : String(parseErr)
+            }`,
+          },
+        });
+      }
     }
 
     // Also support JSON body with text (legacy)
@@ -143,12 +164,24 @@ export async function POST(request: Request) {
           model: AI_MODEL,
           max_tokens: MAX_TOKENS,
           system: systemPrompt,
-          messages: [{ role: "user", content: body.text.slice(0, 15000) }],
+          messages: [
+            { role: "user", content: body.text.slice(0, 15000) },
+            { role: "assistant", content: JSON_PREFILL },
+          ],
         });
         const content = response.content[0];
         if (content.type === "text") {
-          const parsed = parseAIResponse<Record<string, unknown>>(content.text);
-          results.push({ fileName: "text", type: body.type, data: parsed });
+          try {
+            const parsed = parseAIResponse<Record<string, unknown>>(content.text, true);
+            results.push({ fileName: "text", type: body.type, data: parsed });
+          } catch (parseErr) {
+            console.error("JSON parse error (legacy text body):", parseErr, "\nRaw:", content.text.slice(0, 500));
+            results.push({
+              fileName: "text",
+              type: body.type,
+              data: { error: `Parse AI fallito: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}` },
+            });
+          }
         }
       }
     }
