@@ -12,43 +12,38 @@ interface Stats {
 
 const CARDS: Array<{
   key: keyof Stats;
-  icon: string;
   label: string;
   hint: string;
   href: string;
-  color: string;
+  tone?: string;
 }> = [
   {
     key: "urgentCount",
-    icon: "⚡",
     label: "Urgenti",
     hint: "Deadline ≤ 7 giorni",
     href: "/festivals?urgency=urgent",
-    color: "from-red-100 to-red-50 border-red-200",
+    tone: "var(--accent)",
   },
   {
     key: "oscarOpenCount",
-    icon: "🏆",
-    label: "Oscar aperti",
-    hint: "Qualifying con deadline futura",
+    label: "Oscar qualifying",
+    hint: "Con deadline futura",
     href: "/festivals?qualifying=oscar&hasDeadline=true",
-    color: "from-rose-100 to-rose-50 border-rose-200",
+    tone: "var(--warn)",
   },
   {
     key: "freeEntryCount",
-    icon: "💰",
     label: "Free entry",
     hint: "Submission gratuite aperte",
     href: "/festivals?feeMax=0&hasDeadline=true",
-    color: "from-emerald-100 to-emerald-50 border-emerald-200",
+    tone: "var(--ok)",
   },
   {
     key: "budgetPlanned",
-    icon: "📋",
     label: "Budget pianificato",
     hint: "Fee totali dei miei piani",
     href: "/strategies",
-    color: "from-sky-100 to-sky-50 border-sky-200",
+    tone: "var(--info)",
   },
 ];
 
@@ -74,25 +69,19 @@ export function KpiCards() {
   }, []);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid-4">
       {CARDS.map((card) => (
         <Link
           key={card.key}
           href={card.href}
-          className={`block p-4 rounded-lg border bg-gradient-to-br hover:shadow-md transition-shadow ${card.color}`}
+          className="kpi"
+          style={{ textDecoration: "none", display: "block" }}
         >
-          <div className="flex items-start justify-between">
-            <span className="text-2xl" aria-hidden="true">
-              {card.icon}
-            </span>
-            <span className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-wide">
-              {card.hint}
-            </span>
-          </div>
-          <p className="text-2xl md:text-3xl font-bold mt-2 text-[var(--foreground)]">
+          <div className="kpi-label">{card.label}</div>
+          <div className="kpi-value" style={{ color: card.tone }}>
             {loading ? "…" : stats ? formatValue(card.key, stats[card.key]) : "—"}
-          </p>
-          <p className="text-xs text-[var(--muted-foreground)] mt-1">{card.label}</p>
+          </div>
+          <div className="kpi-sub">{card.hint}</div>
         </Link>
       ))}
     </div>

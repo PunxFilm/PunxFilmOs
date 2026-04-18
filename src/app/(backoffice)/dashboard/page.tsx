@@ -1,87 +1,62 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { StatusBadge } from "@/components/status-badge";
-import { computeEditionStatus, formatDate, daysUntil, formatCurrency } from "@/lib/utils";
+import { Icon } from "@/components/icon";
+import {
+  DeadlineCell,
+  MatchBar,
+  QualifyingDots,
+  fmtDate,
+  fmtMoney,
+  daysBetween,
+} from "@/components/ui-atoms";
 
 export default async function DashboardPage() {
   const now = new Date();
-  const in7days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const in14days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
   const yearStart = new Date(now.getFullYear(), 0, 1);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  /* ── KPI queries ────────────────────────────── */
-
   const [
     filmInDistribuzione,
-    iscrizioniAttive,
+    filmOnboarding,
+    draftCount,
+    submittedCount,
     acceptedCount,
     rejectedCount,
     expenseAggr,
-    // Deadline queries
-    deadlines7,
-    deadlines14,
-    // Azioni urgenti
-    filmsWithMissing,
+    prizeAggr,
+    upcomingEditions,
     draftSubmissions,
     recentResults,
-    // Attivita recente
     recentSubmissions,
-    recentPlanEntries,
+    filmsList,
+    urgentTasks,
   ] = await Promise.all([
-    // KPI 1: Film in distribuzione (onboarding + in_distribuzione)
-    prisma.film.count({
-      where: { status: { in: ["in_distribuzione", "onboarding"] } },
-    }),
-    // KPI 2: Iscrizioni attive (draft + submitted)
-    prisma.submission.count({
-      where: { status: { in: ["draft", "submitted"] } },
-    }),
-    // KPI 3a: accepted count
+    prisma.film.count({ where: { status: "in_distribuzione" } }),
+    prisma.film.count({ where: { status: "onboarding" } }),
+    prisma.submission.count({ where: { status: "draft" } }),
+    prisma.submission.count({ where: { status: "submitted" } }),
     prisma.submission.count({ where: { status: "accepted" } }),
-    // KPI 3b: rejected count
     prisma.submission.count({ where: { status: "rejected" } }),
-    // KPI 4: Budget speso quest'anno
     prisma.financeEntry.aggregate({
       _sum: { amount: true },
       where: { type: "expense", date: { gte: yearStart } },
     }),
-
-    // Deadline questa settimana (general OR early within 7 days)
+    prisma.financeEntry.aggregate({
+      _sum: { amount: true },
+      where: { type: "income", date: { gte: yearStart } },
+    }),
     prisma.festivalEdition.findMany({
       where: {
         OR: [
-          { deadlineGeneral: { gte: now, lte: in7days } },
-          { deadlineEarly: { gte: now, lte: in7days } },
+          { deadlineGeneral: { gte: now, lte: in14days } },
+          { deadlineEarly: { gte: now, lte: in14days } },
         ],
       },
       orderBy: { deadlineGeneral: "asc" },
       include: { festivalMaster: true },
+      take: 12,
     }),
-    // Deadline prossimi 14 giorni (exclude those already in 7-day window)
-    prisma.festivalEdition.findMany({
-      where: {
-        OR: [
-          { deadlineGeneral: { gt: in7days, lte: in14days } },
-          { deadlineEarly: { gt: in7days, lte: in14days } },
-        ],
-      },
-      orderBy: { deadlineGeneral: "asc" },
-      include: { festivalMaster: true },
-    }),
-
-    // Films with missing materials
-    prisma.film.findMany({
-      where: {
-        status: { in: ["in_distribuzione", "onboarding"] },
-        materials: { some: { status: "missing", isRequired: true } },
-      },
-      include: {
-        materials: { where: { isRequired: true } },
-      },
-      take: 10,
-    }),
-    // Submissions in draft
     prisma.submission.findMany({
       where: { status: "draft" },
       orderBy: { updatedAt: "desc" },
@@ -91,7 +66,6 @@ export default async function DashboardPage() {
         festivalEdition: { include: { festivalMaster: true } },
       },
     }),
-    // Recent results (accepted/rejected last 7 days)
     prisma.submission.findMany({
       where: {
         status: { in: ["accepted", "rejected"] },
@@ -104,8 +78,6 @@ export default async function DashboardPage() {
         festivalEdition: { include: { festivalMaster: true } },
       },
     }),
-
-    // Attivita recente: submissions
     prisma.submission.findMany({
       orderBy: { updatedAt: "desc" },
       take: 5,
@@ -114,362 +86,486 @@ export default async function DashboardPage() {
         festivalEdition: { include: { festivalMaster: true } },
       },
     }),
-    // Attivita recente: plan entries
-    prisma.planEntry.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      include: {
-        festivalMaster: true,
-        plan: { include: { film: true } },
-      },
+    prisma.film.findMany({
+      where: { status: { in: ["in_distribuzione", "onboarding"] } },
+      orderBy: { updatedAt: "desc" },
+      take: 4,
     }),
+    prisma.task.findMany({
+      where: { status: { not: "done" }, priority: { in: ["high", "medium"] } },
+      orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
+      take: 5,
+      include: { film: true },
+    }).catch(() => [] as Array<never>),
   ]);
 
-  /* ── Computed values ────────────────────────── */
-
   const totalDecided = acceptedCount + rejectedCount;
-  const tassoAccettazione =
+  const tasso =
     totalDecided > 0
       ? `${Math.round((acceptedCount / totalDecided) * 100)}%`
-      : "\u2014";
-
+      : "—";
   const budgetSpeso = expenseAggr._sum.amount ?? 0;
+  const premi = prizeAggr._sum.amount ?? 0;
+  const bilancio = premi - budgetSpeso;
 
-  const kpis = [
-    {
-      label: "Film in distribuzione",
-      value: filmInDistribuzione,
-      sub: "Onboarding + attivi",
-    },
-    {
-      label: "Iscrizioni attive",
-      value: iscrizioniAttive,
-      sub: "Bozze + inviate",
-    },
-    {
-      label: "Tasso accettazione",
-      value: tassoAccettazione,
-      sub: totalDecided > 0 ? `${acceptedCount}/${totalDecided} decise` : "Nessun esito",
-    },
-    {
-      label: "Budget speso",
-      value: formatCurrency(budgetSpeso),
-      sub: `Anno ${now.getFullYear()}`,
-    },
+  const pipelineTotal = draftCount + submittedCount + acceptedCount + rejectedCount || 1;
+  const pipelineRows = [
+    { k: "draft", label: "Bozza", count: draftCount, color: "var(--fg-3)" },
+    { k: "submitted", label: "Inviata", count: submittedCount, color: "var(--info)" },
+    { k: "accepted", label: "Accettata", count: acceptedCount, color: "var(--ok)" },
+    { k: "rejected", label: "Respinta", count: rejectedCount, color: "var(--accent)" },
   ];
 
-  /* ── Material completion helper ─────────────── */
-
-  function materialCompletionPct(
-    materials: { status: string; isRequired: boolean }[]
-  ): number {
-    const required = materials.filter((m) => m.isRequired);
-    if (required.length === 0) return 100;
-    const done = required.filter((m) => m.status !== "missing").length;
-    return Math.round((done / required.length) * 100);
-  }
-
-  /* ── Deadline card helper ───────────────────── */
-
-  function DeadlineCard({
-    edition,
-  }: {
-    edition: (typeof deadlines7)[number];
-  }) {
-    const edStatus = computeEditionStatus(edition);
-    const nearestDeadline = edition.deadlineEarly
-      ? new Date(edition.deadlineEarly) <= in7days
-        ? edition.deadlineEarly
-        : edition.deadlineGeneral
-      : edition.deadlineGeneral;
-    const days = daysUntil(nearestDeadline);
-    const countdownText =
-      days === 0
-        ? "Oggi"
-        : days === 1
-          ? "Domani"
-          : days !== null
-            ? `Tra ${days} giorni`
-            : "";
-
-    return (
-      <div className="flex items-start justify-between gap-2 py-2">
-        <div className="min-w-0 flex-1">
-          <Link
-            href={`/festivals/${edition.festivalMasterId}`}
-            className="font-medium text-sm hover:underline truncate block"
-          >
-            {edition.festivalMaster.name}
-          </Link>
-          <div className="flex items-center gap-2 mt-1">
-            <span
-              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${edStatus.color}`}
-            >
-              {edStatus.label}
-            </span>
-            {edition.feeAmount != null && (
-              <span className="text-xs text-[var(--muted-foreground)]">
-                {edition.feeCurrency} {edition.feeAmount}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="text-right shrink-0">
-          <span className="text-sm font-medium text-[var(--accent)]">
-            {formatDate(nearestDeadline)}
-          </span>
-          {countdownText && (
-            <p className="text-xs text-[var(--muted-foreground)]">
-              {countdownText}
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  /* ── Render ─────────────────────────────────── */
+  const todayLabel = now.toLocaleDateString("it-IT", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-[var(--muted-foreground)]">
-          Panoramica operativa distributore
-        </p>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Buongiorno, Simone</h1>
+          <div className="page-sub">
+            {todayLabel.charAt(0).toUpperCase() + todayLabel.slice(1)} · Stagione{" "}
+            {now.getFullYear()}
+          </div>
+        </div>
+        <div className="page-head-actions">
+          <Link href="/reports" className="btn">
+            <Icon name="download" size={12} />
+            Export report
+          </Link>
+          <Link href="/submissions/new" className="btn accent">
+            <Icon name="plus" size={12} />
+            Nuova iscrizione
+          </Link>
+        </div>
       </div>
 
-      {/* ── Section 1: KPI Cards ──────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((card) => (
-          <div
-            key={card.label}
-            className="p-4 rounded-lg border border-[var(--border)] bg-[var(--card)]"
-          >
-            <p className="text-sm text-[var(--muted-foreground)]">
-              {card.label}
-            </p>
-            <p className="text-3xl font-bold mt-1">{card.value}</p>
-            <p className="text-xs text-[var(--muted-foreground)] mt-1">
-              {card.sub}
-            </p>
+      <div style={{ padding: "16px 24px" }}>
+        {/* KPI row */}
+        <div className="grid-4" style={{ marginBottom: 16 }}>
+          <div className="kpi">
+            <div className="kpi-label">Film in distribuzione</div>
+            <div className="kpi-value">{filmInDistribuzione + filmOnboarding}</div>
+            <div className="kpi-sub">
+              <span>{filmOnboarding} onboarding</span>
+              <span className="sep" />
+              <span>{filmInDistribuzione} attivi</span>
+            </div>
           </div>
-        ))}
-      </div>
-
-      {/* ── Section 2 + 3: Two columns ────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* LEFT: Deadline */}
-        <div className="space-y-6">
-          {/* Deadline questa settimana */}
-          <div className="p-6 rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <h3 className="font-semibold mb-4">
-              Deadline questa settimana
-            </h3>
-            {deadlines7.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Nessuna deadline nei prossimi 7 giorni.
-              </p>
-            ) : (
-              <div className="divide-y divide-[var(--border)]">
-                {deadlines7.map((ed) => (
-                  <DeadlineCard key={ed.id} edition={ed} />
-                ))}
-              </div>
-            )}
+          <div className="kpi">
+            <div className="kpi-label">Iscrizioni attive</div>
+            <div className="kpi-value">{draftCount + submittedCount}</div>
+            <div className="kpi-sub">
+              <span>{draftCount} bozze</span>
+              <span className="sep" />
+              <span>{submittedCount} inviate</span>
+            </div>
           </div>
-
-          {/* Deadline prossimi 14 giorni */}
-          <div className="p-6 rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <h3 className="font-semibold mb-4">
-              Deadline prossimi 14 giorni
-            </h3>
-            {deadlines14.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Nessuna deadline aggiuntiva.
-              </p>
-            ) : (
-              <div className="divide-y divide-[var(--border)]">
-                {deadlines14.map((ed) => (
-                  <DeadlineCard key={ed.id} edition={ed} />
-                ))}
-              </div>
-            )}
+          <div className="kpi">
+            <div className="kpi-label">Tasso accettazione</div>
+            <div className="kpi-value">{tasso}</div>
+            <div className="kpi-sub">
+              <span className="u-num">
+                {acceptedCount}/{totalDecided}
+              </span>
+              <span>decise</span>
+            </div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">Bilancio {now.getFullYear()}</div>
+            <div className="kpi-value mono">{fmtMoney(bilancio)}</div>
+            <div className="kpi-sub">
+              <span className="u-num">{fmtMoney(budgetSpeso)}</span> spesi
+              <span className="sep" />
+              <span className="u-num" style={{ color: "var(--ok)" }}>
+                +{fmtMoney(premi)}
+              </span>{" "}
+              premi
+            </div>
           </div>
         </div>
 
-        {/* RIGHT: Azioni urgenti */}
-        <div className="space-y-6">
-          {/* Materiali mancanti */}
-          <div className="p-6 rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <h3 className="font-semibold mb-4">Materiali incompleti</h3>
-            {filmsWithMissing.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Tutti i materiali richiesti sono presenti.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {filmsWithMissing.map((film) => {
-                  const pct = materialCompletionPct(film.materials);
-                  return (
-                    <div key={film.id}>
-                      <div className="flex items-center justify-between">
-                        <Link
-                          href={`/films/${film.id}`}
-                          className="font-medium text-sm hover:underline truncate"
+        <div className="grid-dash">
+          {/* LEFT column */}
+          <div className="col" style={{ gap: 16 }}>
+            <div className="card">
+              <div className="card-head">
+                <span className="card-title">Deadline prossimi 14 giorni</span>
+                <span className="chip mono" style={{ fontSize: 10.5 }}>
+                  {upcomingEditions.length}
+                </span>
+                <div style={{ marginLeft: "auto" }} className="row gap-2">
+                  <Link href="/calendar" className="btn sm ghost">
+                    Calendario completo →
+                  </Link>
+                </div>
+              </div>
+              {upcomingEditions.length === 0 ? (
+                <div className="card-body muted">
+                  Nessuna deadline nei prossimi 14 giorni.
+                </div>
+              ) : (
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 100 }}>Countdown</th>
+                      <th>Festival</th>
+                      <th>Città</th>
+                      <th>Qualifying</th>
+                      <th>Fee</th>
+                      <th style={{ width: 40 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {upcomingEditions.map((ed) => {
+                      const nearest =
+                        ed.deadlineEarly && new Date(ed.deadlineEarly) >= now
+                          ? { d: ed.deadlineEarly, t: "early" }
+                          : { d: ed.deadlineGeneral, t: "reg" };
+                      return (
+                        <tr key={ed.id}>
+                          <td>
+                            <DeadlineCell date={nearest.d} type={nearest.t} />
+                          </td>
+                          <td>
+                            <Link
+                              href={`/festivals/${ed.festivalMasterId}`}
+                              className="t-title serif"
+                              style={{ fontSize: 14 }}
+                            >
+                              {ed.festivalMaster.name}
+                            </Link>
+                          </td>
+                          <td className="t-sub">{ed.festivalMaster.city}</td>
+                          <td>
+                            <QualifyingDots
+                              fes={{
+                                academy: ed.festivalMaster.academyQualifying,
+                                bafta: ed.festivalMaster.baftaQualifying,
+                                efa: ed.festivalMaster.efaQualifying,
+                                goya: ed.festivalMaster.goyaQualifying,
+                              }}
+                            />
+                          </td>
+                          <td className="u-num">
+                            {ed.feeAmount == null
+                              ? "—"
+                              : ed.feeAmount === 0
+                                ? "free"
+                                : fmtMoney(ed.feeAmount, ed.feeCurrency)}
+                          </td>
+                          <td>
+                            <Link
+                              href={`/festivals/${ed.festivalMasterId}`}
+                              className="icon-btn"
+                            >
+                              <Icon
+                                name="chev"
+                                size={12}
+                                style={{ color: "var(--fg-4)" }}
+                              />
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Attività recente */}
+            <div className="card">
+              <div className="card-head">
+                <span className="card-title">Attività recente</span>
+              </div>
+              <div className="card-body flush">
+                {recentSubmissions.length === 0 ? (
+                  <div className="card-body muted">Nessuna attività recente.</div>
+                ) : (
+                  recentSubmissions.map((s) => {
+                    const when = fmtDate(s.updatedAt);
+                    const color =
+                      s.status === "accepted"
+                        ? "ok"
+                        : s.status === "rejected"
+                          ? "accent"
+                          : s.status === "submitted"
+                            ? "info"
+                            : "";
+                    return (
+                      <div
+                        key={s.id}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "28px 1fr auto",
+                          gap: 12,
+                          padding: "11px 14px",
+                          borderBottom: "1px solid var(--border)",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: "50%",
+                            background: color ? `var(--${color}-bg)` : "var(--bg-2)",
+                            color: color ? `var(--${color})` : "var(--fg-3)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
                         >
-                          {film.titleOriginal}
-                        </Link>
-                        <span className="text-xs font-medium text-[var(--muted-foreground)] shrink-0 ml-2">
-                          {pct}%
+                          <Icon
+                            name={
+                              s.status === "accepted"
+                                ? "check"
+                                : s.status === "submitted"
+                                  ? "submit"
+                                  : s.status === "rejected"
+                                    ? "close"
+                                    : "mail"
+                            }
+                            size={12}
+                          />
+                        </span>
+                        <div>
+                          <div style={{ fontSize: 12.5, fontWeight: 500 }}>
+                            {s.film.titleOriginal}
+                          </div>
+                          <div className="tiny">
+                            → {s.festivalEdition.festivalMaster.name}
+                          </div>
+                        </div>
+                        <span className="tiny u-num">{when}</span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT column */}
+          <div className="col" style={{ gap: 16 }}>
+            {/* Bozze in sospeso */}
+            <div className="card">
+              <div className="card-head">
+                <span className="card-title">Bozze in sospeso</span>
+                <span className="badge accent" style={{ marginLeft: "auto" }}>
+                  {draftSubmissions.length}
+                </span>
+              </div>
+              <div className="card-body" style={{ padding: 8 }}>
+                {draftSubmissions.length === 0 ? (
+                  <div className="tiny" style={{ padding: 8 }}>
+                    Nessuna bozza aperta.
+                  </div>
+                ) : (
+                  draftSubmissions.map((s) => (
+                    <Link
+                      key={s.id}
+                      href={`/submissions/${s.id}`}
+                      style={{
+                        padding: "8px 6px",
+                        borderBottom: "1px solid var(--border)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 12.5,
+                            fontWeight: 500,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {s.film.titleOriginal}
+                        </div>
+                        <div className="tiny">
+                          {s.festivalEdition.festivalMaster.name}
+                        </div>
+                      </div>
+                      <span className="badge">Bozza</span>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Film attivi */}
+            <div className="card">
+              <div className="card-head">
+                <span className="card-title">I tuoi film</span>
+                <Link
+                  href="/films"
+                  className="btn sm ghost"
+                  style={{ marginLeft: "auto" }}
+                >
+                  Tutti →
+                </Link>
+              </div>
+              <div
+                className="card-body"
+                style={{
+                  padding: 12,
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 10,
+                }}
+              >
+                {filmsList.length === 0 ? (
+                  <div className="tiny">Nessun film attivo.</div>
+                ) : (
+                  filmsList.map((f) => (
+                    <Link
+                      key={f.id}
+                      href={`/films/${f.id}`}
+                      style={{ display: "flex", gap: 10 }}
+                    >
+                      <div style={{ width: 40 }}>
+                        <div className="poster sm">
+                          <div className="p-title">{f.titleOriginal.slice(0, 12)}</div>
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          className="serif"
+                          style={{
+                            fontSize: 14,
+                            color: "var(--fg)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {f.titleOriginal}
+                        </div>
+                        <div
+                          className="tiny"
+                          style={{
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {f.director || "—"}
+                        </div>
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Risultati recenti */}
+            {recentResults.length > 0 && (
+              <div className="card">
+                <div className="card-head">
+                  <span className="card-title">Risultati recenti</span>
+                </div>
+                <div className="card-body" style={{ padding: 8 }}>
+                  {recentResults.map((s) => (
+                    <div
+                      key={s.id}
+                      style={{
+                        padding: "8px 6px",
+                        borderBottom: "1px solid var(--border)",
+                      }}
+                    >
+                      <div style={{ fontSize: 12.5, fontWeight: 500 }}>
+                        {s.film.titleOriginal}
+                      </div>
+                      <div className="tiny row gap-2">
+                        <span>{s.festivalEdition.festivalMaster.name}</span>
+                        <span
+                          className={`badge ${s.status === "accepted" ? "ok" : "accent"}`}
+                        >
+                          {s.status === "accepted" ? "Accettata" : "Respinta"}
                         </span>
                       </div>
-                      <div className="mt-1 h-1.5 rounded-full bg-[var(--muted)] overflow-hidden">
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pipeline */}
+            <div className="card">
+              <div className="card-head">
+                <span className="card-title">Pipeline iscrizioni</span>
+              </div>
+              <div className="card-body" style={{ padding: 14 }}>
+                {pipelineRows.map((s) => {
+                  const pct = (s.count / pipelineTotal) * 100;
+                  return (
+                    <div key={s.k} style={{ marginBottom: 10 }}>
+                      <div className="between" style={{ marginBottom: 4 }}>
+                        <span style={{ fontSize: 12 }}>{s.label}</span>
+                        <span className="u-num tiny">
+                          {s.count} · {Math.round(pct)}%
+                        </span>
+                      </div>
+                      <div className="progress">
                         <div
-                          className="h-full rounded-full bg-[var(--accent)] transition-all"
-                          style={{ width: `${pct}%` }}
+                          className="bar"
+                          style={{ width: `${pct}%`, background: s.color }}
                         />
                       </div>
                     </div>
                   );
                 })}
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Bozze da completare */}
-          <div className="p-6 rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <h3 className="font-semibold mb-4">Iscrizioni in bozza</h3>
-            {draftSubmissions.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Nessuna bozza in sospeso.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {draftSubmissions.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {sub.film.titleOriginal}
-                      </p>
-                      <p className="text-xs text-[var(--muted-foreground)] truncate">
-                        {sub.festivalEdition.festivalMaster.name}
-                      </p>
-                    </div>
-                    <StatusBadge value="draft" />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Risultati recenti */}
-          <div className="p-6 rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <h3 className="font-semibold mb-4">Risultati recenti</h3>
-            {recentResults.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Nessun risultato negli ultimi 7 giorni.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {recentResults.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {sub.film.titleOriginal}
-                      </p>
-                      <p className="text-xs text-[var(--muted-foreground)] truncate">
-                        {sub.festivalEdition.festivalMaster.name}
-                      </p>
-                    </div>
-                    <StatusBadge value={sub.status} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Section 4: Attivita recente ───────── */}
-      <div className="p-6 rounded-lg border border-[var(--border)] bg-[var(--card)]">
-        <h3 className="font-semibold mb-4">Attivita recente</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Ultime iscrizioni */}
-          <div>
-            <h4 className="text-sm font-medium text-[var(--muted-foreground)] mb-3">
-              Ultime iscrizioni
-            </h4>
-            {recentSubmissions.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Nessuna iscrizione recente.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {recentSubmissions.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {sub.film.titleOriginal}
-                      </p>
-                      <p className="text-xs text-[var(--muted-foreground)] truncate">
-                        {sub.festivalEdition.festivalMaster.name}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <StatusBadge value={sub.status} />
-                      <span className="text-xs text-[var(--muted-foreground)]">
-                        {formatDate(sub.updatedAt)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Ultimi piani */}
-          <div>
-            <h4 className="text-sm font-medium text-[var(--muted-foreground)] mb-3">
-              Ultimi piani aggiornati
-            </h4>
-            {recentPlanEntries.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Nessun piano recente.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {recentPlanEntries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {entry.plan.film.titleOriginal}
-                      </p>
-                      <p className="text-xs text-[var(--muted-foreground)] truncate">
-                        {entry.festivalMaster.name}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <StatusBadge value={entry.status} />
-                      <span className="text-xs text-[var(--muted-foreground)]">
-                        {formatDate(entry.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+            {/* Task urgenti */}
+            {urgentTasks.length > 0 && (
+              <div className="card">
+                <div className="card-head">
+                  <span className="card-title">Task urgenti</span>
+                </div>
+                <div className="card-body" style={{ padding: 8 }}>
+                  {urgentTasks.map((t) => {
+                    const dd = daysBetween(t.dueDate, now);
+                    return (
+                      <Link
+                        key={t.id}
+                        href={`/tasks/${t.id}`}
+                        style={{
+                          padding: "8px 6px",
+                          borderBottom: "1px solid var(--border)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 500 }}>
+                            {t.title}
+                          </div>
+                          {t.film && <div className="tiny">{t.film.titleOriginal}</div>}
+                        </div>
+                        {dd != null && (
+                          <span
+                            className={`badge ${dd <= 1 ? "accent" : dd <= 7 ? "warn" : ""}`}
+                          >
+                            T−{dd}g
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

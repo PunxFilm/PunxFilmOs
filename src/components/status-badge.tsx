@@ -1,46 +1,49 @@
-const colors: Record<string, string> = {
-  // Submission status
-  draft: "bg-[var(--muted)] text-[var(--muted-foreground)]",
-  submitted: "bg-amber-100 text-amber-800",
-  accepted: "bg-emerald-100 text-emerald-800",
-  rejected: "bg-red-100 text-red-800",
-  withdrawn: "bg-[var(--muted)] text-[var(--muted-foreground)]",
+// Mapped to design-system tone classes: "", "accent", "ok", "warn", "info", "purple"
+const tones: Record<string, string> = {
+  // Submission / plan status
+  draft: "",
+  submitted: "info",
+  accepted: "ok",
+  rejected: "accent",
+  withdrawn: "",
   // Task status
-  todo: "bg-[var(--muted)] text-[var(--muted-foreground)]",
-  in_progress: "bg-blue-100 text-blue-800",
-  done: "bg-emerald-100 text-emerald-800",
+  todo: "",
+  in_progress: "info",
+  done: "ok",
+  completed: "ok",
   // Priority
-  high: "bg-red-100 text-red-800",
-  medium: "bg-amber-100 text-amber-800",
-  low: "bg-[var(--muted)] text-[var(--muted-foreground)]",
+  high: "accent",
+  medium: "warn",
+  low: "",
   // Film status
-  active: "bg-emerald-100 text-emerald-800",
-  archived: "bg-[var(--muted)] text-[var(--muted-foreground)]",
+  active: "ok",
+  archived: "",
   // Finance
-  expense: "bg-red-100 text-red-800",
-  income: "bg-emerald-100 text-emerald-800",
+  expense: "accent",
+  income: "ok",
   // Results
-  official_selection: "bg-purple-100 text-purple-800",
-  competition: "bg-blue-100 text-blue-800",
-  special_mention: "bg-amber-100 text-amber-800",
+  official_selection: "purple",
+  competition: "info",
+  special_mention: "warn",
+  award: "warn",
   // Plan entry / waiver request status
-  pending: "bg-amber-100 text-amber-800",
-  sent: "bg-blue-100 text-blue-800",
-  approved: "bg-emerald-100 text-emerald-800",
-  expired: "bg-gray-100 text-gray-600",
-  subscribed: "bg-purple-100 text-purple-800",
-  // Premiere levels
-  world: "bg-indigo-100 text-indigo-800",
-  international: "bg-blue-100 text-blue-800",
-  european: "bg-teal-100 text-teal-800",
-  national: "bg-slate-100 text-slate-700",
-  // Verification status
-  unverified: "bg-gray-100 text-gray-600",
-  verified: "bg-emerald-100 text-emerald-800",
-  needs_review: "bg-amber-100 text-amber-800",
-  // Plan entry roles
-  premiere: "bg-amber-100 text-amber-800",
-  queue: "bg-[var(--muted)] text-[var(--muted-foreground)]",
+  pending: "warn",
+  sent: "info",
+  approved: "ok",
+  expired: "",
+  subscribed: "purple",
+  // Premiere
+  world: "accent",
+  international: "info",
+  european: "info",
+  national: "",
+  // Verification
+  unverified: "",
+  verified: "ok",
+  needs_review: "warn",
+  // Roles
+  premiere: "warn",
+  queue: "",
 };
 
 const labels: Record<string, string> = {
@@ -71,34 +74,24 @@ const labels: Record<string, string> = {
   official_selection: "Selezione Ufficiale",
   competition: "Concorso",
   special_mention: "Menzione Speciale",
-  // Plan entry / waiver request status
   pending: "Da valutare",
   sent: "Inviata",
   approved: "Approvato",
   expired: "Scaduta",
   subscribed: "Iscritto",
-  // Verification
   unverified: "Non verificato",
   verified: "Verificato",
   needs_review: "Da rivedere",
-  // Premiere levels
   world: "World Premiere",
   international: "Int'l Premiere",
   european: "European Premiere",
   national: "National Premiere",
-  // Roles
   premiere: "Premiere",
   queue: "Coda",
-  // Plan status
   completed: "Completata",
 };
 
 export function StatusBadge({ value }: { value: string }) {
-  return (
-    <span
-      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${colors[value] || "bg-[var(--muted)] text-[var(--muted-foreground)]"}`}
-    >
-      {labels[value] || value}
-    </span>
-  );
+  const tone = tones[value] ?? "";
+  return <span className={`badge nb ${tone}`}>{labels[value] || value}</span>;
 }

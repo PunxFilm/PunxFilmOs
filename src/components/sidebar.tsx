@@ -4,20 +4,50 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
+import { Icon, type IconName } from "@/components/icon";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/notifications", label: "Notifiche" },
-  { href: "/films", label: "Film" },
-  { href: "/festivals", label: "Festival" },
-  { href: "/strategies", label: "Strategie" },
-  { href: "/submissions", label: "Iscrizioni" },
-  { href: "/tasks", label: "Task" },
-  { href: "/finance", label: "Finanza" },
-  { href: "/calendar", label: "Calendario" },
-  { href: "/team", label: "Team" },
-  { href: "/import", label: "Import" },
-  { href: "/settings", label: "Impostazioni" },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: IconName;
+  count?: number | null;
+  dot?: boolean;
+};
+type NavSection = { g: string; items: NavItem[] };
+
+const NAV: NavSection[] = [
+  {
+    g: "Operazioni",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: "dash", dot: true },
+      { href: "/notifications", label: "Notifiche", icon: "bell" },
+      { href: "/tasks", label: "Task", icon: "task" },
+    ],
+  },
+  {
+    g: "Catalogo",
+    items: [
+      { href: "/films", label: "Film", icon: "film" },
+      { href: "/festivals", label: "Festival", icon: "festival" },
+    ],
+  },
+  {
+    g: "Distribuzione",
+    items: [
+      { href: "/strategies", label: "Strategie", icon: "strategy" },
+      { href: "/submissions", label: "Iscrizioni", icon: "submit" },
+      { href: "/calendar", label: "Calendario", icon: "calendar" },
+      { href: "/finance", label: "Finanza", icon: "money" },
+    ],
+  },
+  {
+    g: "Sistema",
+    items: [
+      { href: "/team", label: "Team", icon: "team" },
+      { href: "/import", label: "Import", icon: "import" },
+      { href: "/settings", label: "Impostazioni", icon: "settings" },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -26,113 +56,112 @@ interface SidebarProps {
 }
 
 export function Sidebar({ userName, userEmail }: SidebarProps) {
-  const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname() || "/";
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const closeMobile = () => setMobileOpen(false);
+  const initials = (userName || userEmail || "SP")
+    .split(" ")
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "SP";
 
   return (
-    <>
-      {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 border-b border-[var(--border)] bg-[var(--card)]">
-        <Link href="/dashboard" className="font-bold text-sm">
-          PunxFilm OS
-        </Link>
+    <aside className="sidebar">
+      <div className="sidebar-header">
+        <div className="brand">
+          <span className="brand-mark">P</span>
+          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
+            <span className="brand-name">PunxFilm</span>
+            <span className="brand-os">distribution os</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {NAV.map((sec) => (
+          <div key={sec.g} className="nav-section">
+            <div className="nav-title">{sec.g}</div>
+            {sec.items.map((it) => {
+              const isActive =
+                pathname === it.href || pathname.startsWith(it.href + "/");
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  className={`nav-item ${isActive ? "active" : ""}`}
+                >
+                  <Icon name={it.icon} size={14} className="n-icon" />
+                  <span>{it.label}</span>
+                  {it.count != null && (
+                    <span className="n-count">
+                      {it.count > 999
+                        ? (it.count / 1000).toFixed(1) + "k"
+                        : it.count}
+                    </span>
+                  )}
+                  {it.dot && it.count == null && <span className="n-dot" />}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <div className="sidebar-footer" style={{ position: "relative" }}>
         <button
           type="button"
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label="Apri menu"
-          className="p-2 -mr-2 rounded-md hover:bg-[var(--secondary)]"
+          className="user-chip"
+          onClick={() => setMenuOpen((v) => !v)}
+          style={{ width: "100%" }}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            {mobileOpen ? (
-              <>
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </>
-            ) : (
-              <>
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </>
-            )}
-          </svg>
-        </button>
-      </div>
-
-      {/* Backdrop for mobile */}
-      {mobileOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/40 z-30"
-          onClick={closeMobile}
-          aria-hidden="true"
-        />
-      )}
-
-      <aside
-        className={`fixed md:static top-0 left-0 z-40 h-screen w-[var(--sidebar-width)] border-r border-[var(--border)] bg-[var(--card)] flex flex-col transition-transform duration-200 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
-      >
-        <div className="p-4 border-b border-[var(--border)]">
-          <h2 className="text-lg font-bold">PunxFilm OS</h2>
-          <p className="text-xs text-[var(--muted-foreground)]">Distribution Platform</p>
-        </div>
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={closeMobile}
-                className={`block px-3 py-2 rounded-md text-sm transition-colors ${
-                  isActive
-                    ? "bg-[var(--secondary)] font-medium"
-                    : "hover:bg-[var(--secondary)]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="p-3 border-t border-[var(--border)] space-y-2">
-          {userName && (
-            <div className="px-3 py-1">
-              <p className="text-sm font-medium truncate">{userName}</p>
-              {userEmail && userEmail !== userName && (
-                <p className="text-xs text-[var(--muted-foreground)] truncate">{userEmail}</p>
-              )}
+          <div className="user-av">{initials}</div>
+          <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+            <div className="user-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {userName || "Simone"}
             </div>
-          )}
-          <Link
-            href="/profile"
-            onClick={closeMobile}
-            className="block px-3 py-2 rounded-md text-sm hover:bg-[var(--secondary)]"
+            <div className="user-role">Admin · PunxFilm</div>
+          </div>
+          <Icon name="chevD" size={12} style={{ color: "var(--fg-4)" }} />
+        </button>
+        {menuOpen && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "calc(100% + 4px)",
+              left: 10,
+              right: 10,
+              background: "var(--card)",
+              border: "1px solid var(--border-strong)",
+              borderRadius: "var(--r)",
+              padding: 4,
+              zIndex: 10,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+            }}
           >
-            Profilo
-          </Link>
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-[var(--secondary)] text-[var(--destructive)]"
-          >
-            Esci
-          </button>
-        </div>
-      </aside>
-    </>
+            <Link
+              href="/profile"
+              onClick={() => setMenuOpen(false)}
+              className="nav-item"
+              style={{ padding: "6px 10px" }}
+            >
+              <span>Profilo</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="nav-item"
+              style={{
+                padding: "6px 10px",
+                width: "100%",
+                textAlign: "left",
+                color: "var(--accent)",
+              }}
+            >
+              Esci
+            </button>
+          </div>
+        )}
+      </div>
+    </aside>
   );
 }

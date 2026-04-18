@@ -229,14 +229,16 @@ function FestivalsPageInner() {
       : `${total} edizioni ${filters.year ? `del ${filters.year}` : "attive"} · ordinate per ${sort.key} ${sort.direction === "asc" ? "↑" : "↓"}`;
 
   return (
-    <div className="space-y-4">
+    <div className="page">
       <PageHeader
         title="Festival"
         subtitle={subtitle}
-        action={{ label: "+ Nuovo Festival", href: "/festivals/new" }}
+        action={{ label: "Nuovo Festival", href: "/festivals/new" }}
       />
 
-      <KpiCards />
+      <div style={{ padding: "16px 24px" }}>
+        <KpiCards />
+      </div>
 
       <FiltersBar
         filters={filters}
@@ -251,41 +253,53 @@ function FestivalsPageInner() {
         }
       />
 
-      {error && (
-        <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>
-      )}
+      <div style={{ padding: "16px 24px" }}>
+        {error && (
+          <div
+            style={{
+              padding: 12,
+              borderRadius: "var(--r-lg)",
+              background: "var(--accent-bg)",
+              color: "var(--accent)",
+              fontSize: 12.5,
+              marginBottom: 12,
+            }}
+          >
+            {error}
+          </div>
+        )}
 
-      {loading && editions.length === 0 ? (
-        <PageSkeleton />
-      ) : editions.length === 0 ? (
-        <EmptyState onReset={() => onFiltersChange(EMPTY_FILTERS)} />
-      ) : view === "table" ? (
-        <FestivalsTable
-          editions={editions}
-          sort={sort}
-          onSortChange={onSortChange}
+        {loading && editions.length === 0 ? (
+          <PageSkeleton />
+        ) : editions.length === 0 ? (
+          <EmptyState onReset={() => onFiltersChange(EMPTY_FILTERS)} />
+        ) : view === "table" ? (
+          <FestivalsTable
+            editions={editions}
+            sort={sort}
+            onSortChange={onSortChange}
+            selectedIds={selectedIds}
+            onToggleId={toggleId}
+            onToggleAll={toggleAll}
+          />
+        ) : (
+          <FestivalsCards
+            editions={editions}
+            selectedIds={selectedIds}
+            onToggleId={toggleId}
+          />
+        )}
+
+        <BulkActionsBar
           selectedIds={selectedIds}
-          onToggleId={toggleId}
-          onToggleAll={toggleAll}
+          allEditions={editions}
+          onClear={clearSelection}
+          initialFilmId={filters.filmId}
         />
-      ) : (
-        <FestivalsCards
-          editions={editions}
-          selectedIds={selectedIds}
-          onToggleId={toggleId}
-        />
-      )}
 
-      <BulkActionsBar
-        selectedIds={selectedIds}
-        allEditions={editions}
-        onClear={clearSelection}
-        initialFilmId={filters.filmId}
-      />
-
-      {/* Pagination */}
-      {total > pageSize && (
-        <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border)]">
+        {/* Pagination */}
+        {total > pageSize && (
+          <div className="flex items-center justify-between gap-3 pt-2 mt-3 border-t border-[var(--border)]">
           <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
             <span>Per pagina</span>
             <select
@@ -306,6 +320,7 @@ function FestivalsPageInner() {
           <Pagination page={page} totalPages={totalPages} onChange={onPageChange} />
         </div>
       )}
+      </div>
     </div>
   );
 }

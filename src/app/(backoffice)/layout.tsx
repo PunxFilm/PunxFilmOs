@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
+import { Topbar } from "@/components/topbar";
+import { AiPanel } from "@/components/ai-panel";
+import { CommandPalette } from "@/components/command-palette";
+import { ShellProvider } from "@/components/shell-context";
 import { auth } from "@/auth";
 
 export default async function BackofficeLayout({
@@ -13,14 +17,21 @@ export default async function BackofficeLayout({
   }
 
   return (
-    <div className="md:flex md:h-screen">
-      <Sidebar
-        userName={session.user.name || session.user.email}
-        userEmail={session.user.email}
-      />
-      <main className="flex-1 md:overflow-auto pt-14 md:pt-0">
-        <div className="p-4 md:p-6">{children}</div>
-      </main>
-    </div>
+    <ShellProvider>
+      <div className="app">
+        <Sidebar
+          userName={session.user.name || session.user.email}
+          userEmail={session.user.email}
+        />
+        <div className="main">
+          <Topbar />
+          <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+            <div className="content">{children}</div>
+            <AiPanel />
+          </div>
+        </div>
+      </div>
+      <CommandPalette />
+    </ShellProvider>
   );
 }

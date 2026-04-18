@@ -4,26 +4,28 @@ export function PageHeader({
   title,
   subtitle,
   action,
+  actions,
 }: {
   title: string;
   subtitle?: string;
   action?: { label: string; href: string };
+  actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="page-head">
       <div>
-        <h1 className="text-2xl font-bold">{title}</h1>
-        {subtitle && (
-          <p className="text-[var(--muted-foreground)]">{subtitle}</p>
-        )}
+        <h1>{title}</h1>
+        {subtitle && <div className="page-sub">{subtitle}</div>}
       </div>
-      {action && (
-        <Link
-          href={action.href}
-          className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          {action.label}
-        </Link>
+      {(action || actions) && (
+        <div className="page-head-actions">
+          {actions}
+          {action && (
+            <Link href={action.href} className="btn accent">
+              {action.label}
+            </Link>
+          )}
+        </div>
       )}
     </div>
   );
