@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { readdir, readFile } from "fs/promises";
 import { join } from "path";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   // KPIs from database
   const [

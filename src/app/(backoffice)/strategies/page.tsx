@@ -10,14 +10,15 @@ interface PlanEntry {
   role: string;
   status: string;
   position: number;
-  festival: { name: string; feesAmount: number | null };
+  estimatedFee: number | null;
+  festivalMaster: { name: string };
 }
 
 interface Plan {
   id: string;
   premiereLevel: string;
   status: string;
-  film: { title: string; director: string; genre: string; duration: number };
+  film: { titleOriginal: string; director: string; genre: string; duration: number };
   entries: PlanEntry[];
 }
 
@@ -40,8 +41,8 @@ export default function StrategiesPage() {
     const q = search.toLowerCase();
     const matchesSearch =
       !q ||
-      p.film.title.toLowerCase().includes(q) ||
-      p.entries.some((e) => e.festival.name.toLowerCase().includes(q));
+      p.film.titleOriginal.toLowerCase().includes(q) ||
+      p.entries.some((e) => e.festivalMaster.name.toLowerCase().includes(q));
     const matchesFilter = !filter || p.status === filter;
     return matchesSearch && matchesFilter;
   });

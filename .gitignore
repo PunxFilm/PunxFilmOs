@@ -1,8 +1,16 @@
 node_modules/
 .next/
 .env
+.env.local
 prisma/dev.db
 prisma/dev.db-journal
+dev.db
+dev.db-journal
 .DS_Store
 *.tsbuildinfo
 /src/generated/prisma
+
+# Claude Code local settings (contains API keys)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/launch.json

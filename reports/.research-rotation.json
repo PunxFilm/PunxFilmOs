@@ -1,19 +1,43 @@
 {
-  "current_week": 1,
-  "current_region": "Europa Occidentale (Italia, Francia, Spagna, UK, Germania)",
-  "next_week": 2,
-  "next_region": "Europa Orientale e Scandinavia",
-  "rotation": [
-    {"week": 1, "region": "Europa Occidentale (Italia, Francia, Spagna, UK, Germania)"},
-    {"week": 2, "region": "Europa Orientale e Scandinavia"},
-    {"week": 3, "region": "Nord America (USA, Canada)"},
-    {"week": 4, "region": "Asia, America Latina, Oceania, Africa"}
+  "lastRegion": "eastern_europe_scandinavia",
+  "lastRunDate": "2026-04-14",
+  "rotationHistory": [
+    {
+      "date": "2026-04-14",
+      "region": "western_europe",
+      "countries": [
+        "Italy",
+        "France",
+        "Spain",
+        "United Kingdom",
+        "Germany",
+        "Austria"
+      ],
+      "festivalsImported": 14,
+      "festivalsUpdated": 0
+    },
+    {
+      "date": "2026-04-14",
+      "region": "eastern_europe_scandinavia",
+      "countries": [
+        "Sweden",
+        "Norway",
+        "Finland",
+        "Denmark",
+        "Hungary",
+        "Poland",
+        "Slovakia",
+        "Czech Republic"
+      ],
+      "festivalsImported": 10,
+      "festivalsUpdated": 0
+    }
   ],
-  "last_run": "2026-04-10",
-  "last_run_stats": {
-    "imported": 12,
-    "updated": 0,
-    "excluded": 2,
-    "total_in_db": 12
+  "nextRegion": "north_america",
+  "schedule": {
+    "week1": "western_europe",
+    "week2": "eastern_europe_scandinavia",
+    "week3": "north_america",
+    "week4": "asia_latam_oceania_africa"
   }
 }

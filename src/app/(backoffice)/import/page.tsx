@@ -52,6 +52,21 @@ interface FilmData {
   country: string;
   language: string;
   synopsis: string;
+  // Extended fields estratti dai PDF film sheet
+  titleInternational?: string;
+  titleOtherLanguages?: string;
+  screenwriters?: string;
+  productionBudget?: string;
+  shootingFormat?: string;
+  soundFormat?: string;
+  aspectRatio?: string;
+  musicRights?: string;
+  spokenLanguages?: string;
+  subtitleLanguages?: string;
+  synopsisShortIt?: string;
+  synopsisShortEn?: string;
+  synopsisLongIt?: string;
+  synopsisLongEn?: string;
 }
 
 interface FestivalMasterOption {

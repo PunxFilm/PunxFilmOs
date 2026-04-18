@@ -14,8 +14,11 @@ interface Submission {
   submittedAt: string | null;
   feesPaid: number | null;
   result: string | null;
-  film: { title: string };
-  festival: { name: string };
+  film: { titleOriginal: string } | null;
+  festivalEdition: {
+    year: number;
+    festivalMaster: { name: string } | null;
+  } | null;
 }
 
 export default function SubmissionsPage() {
@@ -38,10 +41,12 @@ export default function SubmissionsPage() {
 
   const filtered = submissions.filter((s) => {
     const q = search.toLowerCase();
+    const filmTitle = s.film?.titleOriginal || "";
+    const festName = s.festivalEdition?.festivalMaster?.name || "";
     const matchesSearch =
       !q ||
-      s.film.title.toLowerCase().includes(q) ||
-      s.festival.name.toLowerCase().includes(q);
+      filmTitle.toLowerCase().includes(q) ||
+      festName.toLowerCase().includes(q);
     const matchesFilter = !filter || s.status === filter;
     return matchesSearch && matchesFilter;
   });
@@ -99,9 +104,21 @@ export default function SubmissionsPage() {
             <tbody className="divide-y divide-[var(--border)]">
               {filtered.map((s) => (
                 <tr key={s.id} className="hover:bg-[var(--secondary)] transition-colors">
-                  <td className="px-4 py-3 font-medium">{s.film.title}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {s.film?.titleOriginal || "—"}
+                  </td>
                   <td className="px-4 py-3">
-                    <Link href={`/submissions/${s.id}`} className="hover:underline">{s.festival.name}</Link>
+                    <Link
+                      href={`/submissions/${s.id}`}
+                      className="hover:underline"
+                    >
+                      {s.festivalEdition?.festivalMaster?.name || "—"}
+                      {s.festivalEdition?.year && (
+                        <span className="text-xs text-[var(--muted-foreground)] ml-1">
+                          · {s.festivalEdition.year}
+                        </span>
+                      )}
+                    </Link>
                   </td>
                   <td className="px-4 py-3"><StatusBadge value={s.status} /></td>
                   <td className="px-4 py-3">

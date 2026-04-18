@@ -137,7 +137,7 @@ export default function WizardPage() {
         const waiverApplied = premiereRanking.waiverType !== "none";
         entries.push({
           festivalMasterId: premiereFestivalId,
-          festivalEditionId: premiereRanking.festivalEditionId,
+          festivalEditionId: premiereRanking.editionId,
           role: "premiere",
           position: 0,
           status: "approved",
@@ -158,7 +158,7 @@ export default function WizardPage() {
           const waiverApplied = s.waiverType !== "none";
           entries.push({
             festivalMasterId: s.festivalId,
-            festivalEditionId: s.festivalEditionId,
+            festivalEditionId: s.editionId,
             role: "queue",
             position: position++,
             status: decision,

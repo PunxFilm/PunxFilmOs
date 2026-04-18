@@ -1,35 +1,52 @@
 {
   "name": "punxfilm-os",
-  "version": "1.0.0",
+  "version": "2.0.0-alpha",
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "build": "prisma generate && next build",
+    "build:local": "prisma generate && next build",
+    "start": "prisma db push --skip-generate --accept-data-loss && next start",
+    "lint": "next lint",
+    "seed": "tsx prisma/seed.ts",
+    "export-db": "tsx scripts/export-db.ts",
+    "db:postgres": "sed -i '' 's/provider = \"sqlite\"/provider = \"postgresql\"/' prisma/schema.prisma",
+    "db:sqlite": "sed -i '' 's/provider = \"postgresql\"/provider = \"sqlite\"/' prisma/schema.prisma",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "PunxFilm OS — AI-native cinema distribution platform",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.86.1",
+    "@auth/prisma-adapter": "^2.11.2",
     "@prisma/client": "^5.22.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^25.5.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.27",
+    "bcryptjs": "^3.0.3",
     "next": "^14.2.35",
+    "next-auth": "^5.0.0-beta.31",
     "postcss": "^8.5.9",
     "prisma": "^5.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "dotenv": "^17.4.1"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

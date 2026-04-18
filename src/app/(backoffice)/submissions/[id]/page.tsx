@@ -5,16 +5,30 @@ import { useRouter, useParams } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { FormField } from "@/components/form-field";
 import { useToast } from "@/components/toast";
-import { SUBMISSION_STATUS_OPTIONS, PLATFORM_OPTIONS, SUBMISSION_RESULT_OPTIONS } from "@/lib/constants";
+import {
+  SUBMISSION_STATUS_OPTIONS,
+  PLATFORM_OPTIONS,
+  SUBMISSION_RESULT_OPTIONS,
+} from "@/lib/constants";
+
+type Film = { id: string; titleOriginal: string };
+type FestivalOption = { id: string; label: string };
 
 export default function EditSubmissionPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
-  const [films, setFilms] = useState<{ id: string; title: string }[]>([]);
-  const [festivals, setFestivals] = useState<{ id: string; name: string }[]>([]);
+  const [films, setFilms] = useState<Film[]>([]);
+  const [festivals, setFestivals] = useState<FestivalOption[]>([]);
   const [form, setForm] = useState({
-    filmId: "", festivalId: "", status: "draft", platform: "", submittedAt: "", feesPaid: 0, result: "", notes: "",
+    filmId: "",
+    festivalEditionId: "",
+    status: "draft",
+    platform: "",
+    submittedAt: "",
+    feesPaid: 0,
+    result: "",
+    notes: "",
   });
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -23,15 +37,36 @@ export default function EditSubmissionPage() {
   useEffect(() => {
     Promise.all([
       fetch("/api/films").then((r) => r.json()),
-      fetch("/api/festivals").then((r) => r.json()),
+      fetch("/api/festival-masters?limit=500").then((r) => r.json()),
       fetch(`/api/submissions/${params.id}`).then((r) => r.json()),
-    ]).then(([f, fe, data]) => {
+    ]).then(([f, fm, data]) => {
       setFilms(f);
-      setFestivals(fe);
+      const list: FestivalOption[] = (fm.festivals || [])
+        .map(
+          (m: {
+            id: string;
+            name: string;
+            editions?: { id: string; year: number }[];
+          }) => {
+            const latestEdition = m.editions?.[0];
+            if (!latestEdition) return null;
+            return {
+              id: latestEdition.id,
+              label: `${m.name} — ${latestEdition.year}`,
+            };
+          }
+        )
+        .filter(Boolean) as FestivalOption[];
+      setFestivals(list);
       setForm({
-        filmId: data.filmId, festivalId: data.festivalId, status: data.status,
-        platform: data.platform || "", submittedAt: data.submittedAt ? data.submittedAt.split("T")[0] : "",
-        feesPaid: data.feesPaid || 0, result: data.result || "", notes: data.notes || "",
+        filmId: data.filmId,
+        festivalEditionId: data.festivalEditionId,
+        status: data.status,
+        platform: data.platform || "",
+        submittedAt: data.submittedAt ? data.submittedAt.split("T")[0] : "",
+        feesPaid: data.feesPaid || 0,
+        result: data.result || "",
+        notes: data.notes || "",
       });
       setLoading(false);
     });
@@ -44,22 +79,32 @@ export default function EditSubmissionPage() {
     e.preventDefault();
     setError("");
     setSaving(true);
-    const payload = {
-      ...form,
-      feesPaid: form.feesPaid || undefined,
-      submittedAt: form.submittedAt || undefined,
-      platform: form.platform || undefined,
-      result: form.result || undefined,
+    const payload: Record<string, unknown> = {
+      filmId: form.filmId,
+      festivalEditionId: form.festivalEditionId,
+      status: form.status,
+      notes: form.notes || undefined,
     };
+    if (form.platform) payload.platform = form.platform;
+    if (form.submittedAt) payload.submittedAt = form.submittedAt;
+    if (form.feesPaid) payload.feesPaid = Number(form.feesPaid);
+    if (form.result) payload.result = form.result;
+
     const res = await fetch(`/api/submissions/${params.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
     if (res.ok) {
       toast("Iscrizione salvata con successo");
       router.push("/submissions");
     } else {
       const data = await res.json();
-      setError(data.error?.toString() || "Errore nel salvataggio");
+      setError(
+        typeof data.error === "string"
+          ? data.error
+          : JSON.stringify(data.error) || "Errore nel salvataggio"
+      );
       setSaving(false);
     }
   };
@@ -79,30 +124,90 @@ export default function EditSubmissionPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Film" name="filmId" type="select" value={form.filmId} onChange={update} required
-            options={films.map((f) => ({ value: f.id, label: f.title }))} />
-          <FormField label="Festival" name="festivalId" type="select" value={form.festivalId} onChange={update} required
-            options={festivals.map((f) => ({ value: f.id, label: f.name }))} />
+          <FormField
+            label="Film"
+            name="filmId"
+            type="select"
+            value={form.filmId}
+            onChange={update}
+            required
+            options={films.map((f) => ({ value: f.id, label: f.titleOriginal }))}
+          />
+          <FormField
+            label="Festival (edizione)"
+            name="festivalEditionId"
+            type="select"
+            value={form.festivalEditionId}
+            onChange={update}
+            required
+            options={festivals.map((f) => ({ value: f.id, label: f.label }))}
+          />
         </div>
         <div className="grid grid-cols-3 gap-4">
-          <FormField label="Stato" name="status" type="select" value={form.status} onChange={update}
-            options={SUBMISSION_STATUS_OPTIONS} />
-          <FormField label="Piattaforma" name="platform" type="select" value={form.platform} onChange={update}
-            options={PLATFORM_OPTIONS} />
-          <FormField label="Risultato" name="result" type="select" value={form.result} onChange={update}
-            options={SUBMISSION_RESULT_OPTIONS} />
+          <FormField
+            label="Stato"
+            name="status"
+            type="select"
+            value={form.status}
+            onChange={update}
+            options={SUBMISSION_STATUS_OPTIONS}
+          />
+          <FormField
+            label="Piattaforma"
+            name="platform"
+            type="select"
+            value={form.platform}
+            onChange={update}
+            options={PLATFORM_OPTIONS}
+          />
+          <FormField
+            label="Risultato"
+            name="result"
+            type="select"
+            value={form.result}
+            onChange={update}
+            options={SUBMISSION_RESULT_OPTIONS}
+          />
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Data Invio" name="submittedAt" type="date" value={form.submittedAt} onChange={update} />
-          <FormField label="Fee Pagata (EUR)" name="feesPaid" type="number" value={form.feesPaid} onChange={update} />
+          <FormField
+            label="Data Invio"
+            name="submittedAt"
+            type="date"
+            value={form.submittedAt}
+            onChange={update}
+          />
+          <FormField
+            label="Fee Pagata (EUR)"
+            name="feesPaid"
+            type="number"
+            value={form.feesPaid}
+            onChange={update}
+          />
         </div>
         <FormField label="Note" name="notes" type="textarea" value={form.notes} onChange={update} />
         <div className="flex gap-3 pt-2">
-          <button type="submit" disabled={saving} className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
             {saving ? "Salvataggio..." : "Salva Modifiche"}
           </button>
-          <button type="button" onClick={() => router.back()} className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm">Annulla</button>
-          <button type="button" onClick={handleDelete} className="px-4 py-2 bg-[var(--destructive)] text-[var(--destructive-foreground)] rounded-lg text-sm ml-auto">Elimina</button>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="px-4 py-2 border border-[var(--border)] rounded-lg text-sm"
+          >
+            Annulla
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="px-4 py-2 bg-[var(--destructive)] text-[var(--destructive-foreground)] rounded-lg text-sm ml-auto"
+          >
+            Elimina
+          </button>
         </div>
       </form>
     </div>

@@ -1,360 +1,405 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
-import { StatusBadge } from "@/components/status-badge";
-import { CompletenessBar } from "@/components/completeness-bar";
-import { computeEditionStatus, formatDate } from "@/lib/utils";
+import {
+  FiltersBar,
+  EMPTY_FILTERS,
+  type FestivalsFilters,
+} from "@/components/festivals/filters-bar";
+import { ViewToggle, type FestivalsView } from "@/components/festivals/view-toggle";
+import { FestivalsTable } from "@/components/festivals/festivals-table";
+import { FestivalsCards } from "@/components/festivals/festivals-cards";
+import { FilmSelector } from "@/components/festivals/film-selector";
+import { KpiCards } from "@/components/festivals/kpi-cards";
+import { BulkActionsBar } from "@/components/festivals/bulk-actions-bar";
+import type { EditionListItem, SortState } from "@/components/festivals/types";
 
-interface LatestEdition {
-  id: string;
-  year: number;
-  deadlineEarly: string | null;
-  deadlineGeneral: string | null;
-  deadlineLate: string | null;
-  deadlineFinal: string | null;
-  notificationDate: string | null;
-  eventStartDate: string | null;
-  eventEndDate: string | null;
-}
-
-interface FestivalMaster {
-  id: string;
-  name: string;
-  city: string;
-  country: string;
-  classification: string | null;
-  type: string | null;
-  academyQualifying: boolean;
-  punxRating: number | null;
-  completenessScore?: number;
-  _count: { editions: number };
-  editions: LatestEdition[];
-}
-
-const CLASSIFICATION_OPTIONS = [
-  { value: "international", label: "International" },
-  { value: "national", label: "National" },
-  { value: "regional", label: "Regional" },
-  { value: "local", label: "Local" },
-];
-
-const TYPE_OPTIONS = [
-  { value: "short", label: "Short" },
-  { value: "mixed", label: "Mixed" },
-  { value: "documentary", label: "Documentary" },
-  { value: "feature", label: "Feature" },
-  { value: "animation", label: "Animation" },
-];
-
-const COUNTRY_OPTIONS = [
-  "Italia",
-  "USA",
-  "Spagna",
-  "Germania",
-  "Francia",
-  "Regno Unito",
-  "Australia",
-  "India",
-  "Belgio",
-  "Polonia",
-  "Portogallo",
-];
-
-const PAGE_SIZE = 50;
+const PAGE_SIZES = [50, 100, 200];
 
 export default function FestivalsPage() {
-  const [festivals, setFestivals] = useState<FestivalMaster[]>([]);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <FestivalsPageInner />
+    </Suspense>
+  );
+}
 
-  const [search, setSearch] = useState("");
-  const [classification, setClassification] = useState("");
-  const [type, setType] = useState("");
-  const [country, setCountry] = useState("");
-  const [verificationFilter, setVerificationFilter] = useState("");
+function FestivalsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const buildUrl = useCallback(
-    (currentOffset: number) => {
-      const params = new URLSearchParams();
-      params.set("limit", String(PAGE_SIZE));
-      params.set("offset", String(currentOffset));
-      if (search) params.set("search", search);
-      if (classification) params.set("classification", classification);
-      if (type) params.set("type", type);
-      if (country) params.set("country", country);
-      if (verificationFilter) params.set("verificationStatus", verificationFilter);
-      return `/api/festival-masters?${params.toString()}`;
-    },
-    [search, classification, type, country, verificationFilter]
+  // --- State derived from URL ---
+  const filters = useMemo<FestivalsFilters>(
+    () => ({
+      search: searchParams.get("search") || "",
+      year: searchParams.get("year") || "",
+      classification: searchParams.get("classification") || "",
+      type: searchParams.get("type") || "",
+      country: searchParams.get("country") || "",
+      qualifying: searchParams.get("qualifying") || "",
+      hasDeadline: searchParams.get("hasDeadline") === "true",
+      feeMax: searchParams.get("feeMax") || "",
+      urgency: searchParams.get("urgency") || "",
+      planStatus: searchParams.get("planStatus") || "",
+      filmId: searchParams.get("filmId") || "",
+      onlyCompatible: searchParams.get("onlyCompatible") === "true",
+    }),
+    [searchParams]
   );
 
-  // Fetch first page whenever filters change
-  useEffect(() => {
-    setLoading(true);
-    setOffset(0);
-    fetch(buildUrl(0))
-      .then((res) => res.json())
-      .then((data) => {
-        setFestivals(data.festivals ?? data.data ?? []);
-        setTotal(data.total ?? 0);
-      })
-      .catch(() => {
-        setFestivals([]);
-        setTotal(0);
-      })
-      .finally(() => setLoading(false));
-  }, [buildUrl]);
+  const sort: SortState = useMemo(
+    () => ({
+      key: searchParams.get("sort") || "deadline",
+      direction: (searchParams.get("direction") as "asc" | "desc") || "asc",
+    }),
+    [searchParams]
+  );
 
-  // Load more
-  const loadMore = () => {
-    const nextOffset = offset + PAGE_SIZE;
-    setLoadingMore(true);
-    fetch(buildUrl(nextOffset))
-      .then((res) => res.json())
-      .then((data) => {
-        const items: FestivalMaster[] = data.festivals ?? data.data ?? [];
-        setFestivals((prev) => [...prev, ...items]);
-        setOffset(nextOffset);
-      })
-      .finally(() => setLoadingMore(false));
+  const pageSize = parseInt(searchParams.get("pageSize") || "50");
+  const page = parseInt(searchParams.get("page") || "1");
+  const view = (searchParams.get("view") as FestivalsView) || "table";
+
+  // --- Data ---
+  const [editions, setEditions] = useState<EditionListItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedFilmTitle, setSelectedFilmTitle] = useState<string | null>(null);
+
+  // --- Bulk selection state (client-only, persists across pages/filters) ---
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const toggleId = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const toggleAll = useCallback(
+    (ids: string[], selectAll: boolean) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (selectAll) ids.forEach((id) => next.add(id));
+        else ids.forEach((id) => next.delete(id));
+        return next;
+      });
+    },
+    []
+  );
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  // --- URL update helper ---
+  const updateUrl = useCallback(
+    (updates: Record<string, string | boolean | null | undefined>, resetPage = false) => {
+      const next = new URLSearchParams(searchParams.toString());
+      if (resetPage) next.delete("page");
+      for (const [k, v] of Object.entries(updates)) {
+        if (v == null || v === "" || v === false) {
+          next.delete(k);
+        } else {
+          next.set(k, String(v));
+        }
+      }
+      const qs = next.toString();
+      router.replace(qs ? `/festivals?${qs}` : "/festivals", { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  // --- Fetch ---
+  useEffect(() => {
+    const controller = new AbortController();
+    const run = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const qs = new URLSearchParams();
+        if (filters.search) qs.set("search", filters.search);
+        if (filters.year) qs.set("year", filters.year);
+        if (filters.classification) qs.set("classification", filters.classification);
+        if (filters.type) qs.set("type", filters.type);
+        if (filters.country) qs.set("country", filters.country);
+        if (filters.qualifying) qs.set("qualifying", filters.qualifying);
+        if (filters.hasDeadline) qs.set("hasDeadline", "true");
+        if (filters.feeMax) qs.set("feeMax", filters.feeMax);
+        if (filters.urgency) qs.set("urgency", filters.urgency);
+        if (filters.planStatus) qs.set("planStatus", filters.planStatus);
+        if (filters.filmId) qs.set("filmId", filters.filmId);
+        if (filters.onlyCompatible) qs.set("onlyCompatible", "true");
+        qs.set("sort", sort.key);
+        qs.set("direction", sort.direction);
+        qs.set("limit", String(pageSize));
+        qs.set("offset", String((page - 1) * pageSize));
+
+        const res = await fetch(`/api/festival-editions?${qs.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        setEditions(data.editions || []);
+        setTotal(data.total || 0);
+        setSelectedFilmTitle(data.film?.titleOriginal || null);
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return;
+        setError((e as Error).message || "Errore nel caricamento");
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.toString()]);
+
+  // --- Callbacks ---
+  const onFiltersChange = (next: FestivalsFilters) => {
+    updateUrl(
+      {
+        search: next.search,
+        year: next.year,
+        classification: next.classification,
+        type: next.type,
+        country: next.country,
+        qualifying: next.qualifying,
+        hasDeadline: next.hasDeadline,
+        feeMax: next.feeMax,
+        urgency: next.urgency,
+        planStatus: next.planStatus,
+        filmId: next.filmId,
+        onlyCompatible: next.onlyCompatible,
+      },
+      true
+    );
   };
 
-  const hasMore = festivals.length < total;
+  const onFilmChange = (newFilmId: string | null) => {
+    // Quando si seleziona un film, cambia il sort default a "compatibility desc"
+    // Quando si deseleziona, torna a "deadline asc"
+    if (newFilmId) {
+      updateUrl(
+        {
+          filmId: newFilmId,
+          sort: "compatibility",
+          direction: "desc",
+        },
+        true
+      );
+    } else {
+      updateUrl(
+        {
+          filmId: null,
+          onlyCompatible: null,
+          sort: "deadline",
+          direction: "asc",
+        },
+        true
+      );
+    }
+  };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Festival"
-          subtitle="Caricamento..."
-          action={{ label: "Nuovo Festival", href: "/festivals/new" }}
+  const onSortChange = (s: SortState) => {
+    updateUrl({ sort: s.key, direction: s.direction }, true);
+  };
+
+  const onViewChange = (v: FestivalsView) => {
+    try {
+      localStorage.setItem("festivals:view", v);
+    } catch {
+      /* ignore */
+    }
+    updateUrl({ view: v });
+  };
+
+  const onPageChange = (p: number) => {
+    updateUrl({ page: p === 1 ? null : String(p) });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const subtitle = loading
+    ? "Caricamento…"
+    : selectedFilmTitle
+      ? `Festival per "${selectedFilmTitle}" · ${total} ${filters.onlyCompatible ? "compatibili" : "edizioni valutate"} · ordinate per ${sort.key} ${sort.direction === "asc" ? "↑" : "↓"}`
+      : `${total} edizioni ${filters.year ? `del ${filters.year}` : "attive"} · ordinate per ${sort.key} ${sort.direction === "asc" ? "↑" : "↓"}`;
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="Festival"
+        subtitle={subtitle}
+        action={{ label: "+ Nuovo Festival", href: "/festivals/new" }}
+      />
+
+      <KpiCards />
+
+      <FiltersBar
+        filters={filters}
+        onChange={onFiltersChange}
+        total={total}
+        filteredCount={editions.length}
+        rightSlot={
+          <div className="flex items-center gap-2 flex-wrap">
+            <FilmSelector value={filters.filmId} onChange={onFilmChange} />
+            <ViewToggle view={view} onChange={onViewChange} />
+          </div>
+        }
+      />
+
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>
+      )}
+
+      {loading && editions.length === 0 ? (
+        <PageSkeleton />
+      ) : editions.length === 0 ? (
+        <EmptyState onReset={() => onFiltersChange(EMPTY_FILTERS)} />
+      ) : view === "table" ? (
+        <FestivalsTable
+          editions={editions}
+          sort={sort}
+          onSortChange={onSortChange}
+          selectedIds={selectedIds}
+          onToggleId={toggleId}
+          onToggleAll={toggleAll}
         />
-      </div>
-    );
+      ) : (
+        <FestivalsCards
+          editions={editions}
+          selectedIds={selectedIds}
+          onToggleId={toggleId}
+        />
+      )}
+
+      <BulkActionsBar
+        selectedIds={selectedIds}
+        allEditions={editions}
+        onClear={clearSelection}
+        initialFilmId={filters.filmId}
+      />
+
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="flex items-center justify-between gap-3 pt-2 border-t border-[var(--border)]">
+          <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
+            <span>Per pagina</span>
+            <select
+              value={pageSize}
+              onChange={(e) =>
+                updateUrl({ pageSize: e.target.value, page: null }, false)
+              }
+              className="px-2 py-1 rounded border border-[var(--border)] bg-[var(--background)] text-sm"
+            >
+              {PAGE_SIZES.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Pagination page={page} totalPages={totalPages} onChange={onPageChange} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-16 rounded-lg border border-[var(--border)] bg-[var(--card)] animate-pulse"
+        />
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="p-12 text-center border border-[var(--border)] rounded-lg bg-[var(--card)]">
+      <p className="text-[var(--muted-foreground)]">
+        Nessuna edizione trovata con i filtri attuali.
+      </p>
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-3 px-3 py-1.5 border border-[var(--border)] rounded text-sm hover:bg-[var(--secondary)]"
+      >
+        Pulisci filtri
+      </button>
+    </div>
+  );
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (p: number) => void;
+}) {
+  const pages: (number | "…")[] = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    if (page > 3) pages.push("…");
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) {
+      pages.push(i);
+    }
+    if (page < totalPages - 2) pages.push("…");
+    pages.push(totalPages);
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Festival"
-        subtitle={`${festivals.length} di ${total} festival`}
-        action={{ label: "Nuovo Festival", href: "/festivals/new" }}
-      />
-
-      <div className="flex justify-end">
-        <Link href="/festivals/analytics" className="text-sm text-[var(--primary)] hover:underline">
-          Analytics Festival →
-        </Link>
-      </div>
-
-      {/* Search + Filters */}
-      <div className="flex gap-3 flex-wrap">
-        <input
-          type="text"
-          placeholder="Cerca nome, citta, paese..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-        />
-        <select
-          value={classification}
-          onChange={(e) => setClassification(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm"
-        >
-          <option value="">Classificazione: Tutti</option>
-          {CLASSIFICATION_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm"
-        >
-          <option value="">Tipo: Tutti</option>
-          {TYPE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={country}
-          onChange={(e) => setCountry(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm"
-        >
-          <option value="">Paese: Tutti</option>
-          {COUNTRY_OPTIONS.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <select
-          value={verificationFilter}
-          onChange={(e) => setVerificationFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm"
-        >
-          <option value="">Verifica: Tutti</option>
-          <option value="unverified">Non verificato</option>
-          <option value="verified">Verificato</option>
-          <option value="needs_review">Da rivedere</option>
-        </select>
-      </div>
-
-      {/* Table or empty */}
-      {festivals.length === 0 ? (
-        <div className="p-12 text-center border border-[var(--border)] rounded-lg bg-[var(--card)]">
-          <p className="text-[var(--muted-foreground)]">
-            {total === 0 && !search && !classification && !type && !country
-              ? "Nessun festival. Aggiungi il primo festival."
-              : "Nessun festival corrisponde ai filtri."}
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-[var(--secondary)]">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium">Nome</th>
-                  <th className="text-left px-4 py-3 font-medium">
-                    Citta / Paese
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium">Tipo</th>
-                  <th className="text-left px-4 py-3 font-medium">
-                    Classificazione
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium">Academy</th>
-                  <th className="text-left px-4 py-3 font-medium">Status</th>
-                  <th className="text-left px-4 py-3 font-medium">Deadline</th>
-                  <th className="text-left px-4 py-3 font-medium">Rating</th>
-                  <th className="text-left px-4 py-3 font-medium">Completezza</th>
-                  <th className="text-left px-4 py-3 font-medium">Edizioni</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {festivals.map((f) => {
-                  const latestEdition = f.editions?.[0] ?? null;
-                  const editionStatus = latestEdition
-                    ? computeEditionStatus(latestEdition)
-                    : null;
-                  return (
-                    <tr
-                      key={f.id}
-                      className="hover:bg-[var(--secondary)] transition-colors"
-                    >
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/festivals/${f.id}`}
-                          className="font-medium hover:underline"
-                        >
-                          {f.name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        {f.city}, {f.country}
-                      </td>
-                      <td className="px-4 py-3">
-                        {f.type ? <StatusBadge value={f.type} /> : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {f.classification ? (
-                          <StatusBadge value={f.classification} />
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {f.academyQualifying ? (
-                          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                            Academy
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {editionStatus ? (
-                          <div className="space-y-0.5">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${editionStatus.color}`}
-                            >
-                              {editionStatus.label}
-                            </span>
-                            {editionStatus.countdown && (
-                              <p className="text-xs text-[var(--muted-foreground)]">
-                                {editionStatus.countdown}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {editionStatus?.nextDeadline ? (
-                          <span
-                            className={`text-sm ${
-                              (() => {
-                                const d = new Date(editionStatus.nextDeadline);
-                                const days = Math.ceil(
-                                  (d.getTime() - Date.now()) /
-                                    (24 * 60 * 60 * 1000)
-                                );
-                                if (days < 0) return "text-[var(--muted-foreground)] line-through";
-                                if (days <= 3) return "text-red-600 font-semibold";
-                                if (days <= 7) return "text-orange-600 font-medium";
-                                return "";
-                              })()
-                            }`}
-                          >
-                            {formatDate(editionStatus.nextDeadline)}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {f.punxRating != null ? (
-                          <span className="text-amber-500 tracking-wide whitespace-nowrap" title={`${f.punxRating}/5`}>
-                            {"★".repeat(f.punxRating)}
-                            {"☆".repeat(5 - f.punxRating)}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="px-4 py-3 min-w-[120px]">
-                        <CompletenessBar score={f.completenessScore || 0} size="sm" showLabel />
-                      </td>
-                      <td className="px-4 py-3">{f._count.editions}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {hasMore && (
-            <div className="flex justify-center">
-              <button
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="px-6 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--secondary)] transition-colors disabled:opacity-50"
-              >
-                {loadingMore ? "Caricamento..." : "Carica altri"}
-              </button>
-            </div>
-          )}
-        </>
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onChange(page - 1)}
+        disabled={page <= 1}
+        className="px-2 py-1 border border-[var(--border)] rounded text-sm disabled:opacity-40 hover:bg-[var(--secondary)]"
+      >
+        ‹
+      </button>
+      {pages.map((p, i) =>
+        p === "…" ? (
+          <span key={`gap-${i}`} className="px-2 text-[var(--muted-foreground)]">
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onChange(p)}
+            className={`px-3 py-1 border rounded text-sm ${
+              p === page
+                ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
+                : "border-[var(--border)] hover:bg-[var(--secondary)]"
+            }`}
+          >
+            {p}
+          </button>
+        )
       )}
+      <button
+        type="button"
+        onClick={() => onChange(page + 1)}
+        disabled={page >= totalPages}
+        className="px-2 py-1 border border-[var(--border)] rounded text-sm disabled:opacity-40 hover:bg-[var(--secondary)]"
+      >
+        ›
+      </button>
     </div>
   );
 }

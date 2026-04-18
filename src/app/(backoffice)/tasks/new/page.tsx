@@ -10,7 +10,7 @@ import { TASK_STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/lib/constants";
 export default function NewTaskPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [films, setFilms] = useState<{ id: string; title: string }[]>([]);
+  const [films, setFilms] = useState<{ id: string; titleOriginal: string }[]>([]);
   const [form, setForm] = useState({
     title: "", description: "", status: "todo", priority: "medium", dueDate: "", filmId: "",
   });
@@ -61,7 +61,7 @@ export default function NewTaskPage() {
           <FormField label="Scadenza" name="dueDate" type="date" value={form.dueDate} onChange={update} />
         </div>
         <FormField label="Film (opzionale)" name="filmId" type="select" value={form.filmId} onChange={update}
-          options={films.map((f) => ({ value: f.id, label: f.title }))} />
+          options={films.map((f) => ({ value: f.id, label: f.titleOriginal }))} />
         <div className="flex gap-3 pt-2">
           <button type="submit" disabled={saving} className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
             {saving ? "Salvataggio..." : "Salva Task"}

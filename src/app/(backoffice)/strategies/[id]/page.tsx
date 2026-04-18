@@ -46,7 +46,7 @@ interface Plan {
   aiAnalysis: string | null;
   film: {
     id: string;
-    title: string;
+    titleOriginal: string;
     director: string;
     genre: string;
     duration: number;

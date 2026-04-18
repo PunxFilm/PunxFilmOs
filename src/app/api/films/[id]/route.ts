@@ -5,7 +5,18 @@ import { filmUpdateSchema } from "@/lib/validations";
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const film = await prisma.film.findUnique({
     where: { id: params.id },
-    include: { materials: true, submissions: { include: { festivalEdition: { include: { festivalMaster: true } } } }, _count: { select: { submissions: true, tasks: true } } },
+    include: {
+      materials: { orderBy: [{ isRequired: "desc" }, { type: "asc" }] },
+      submissions: {
+        orderBy: { createdAt: "desc" },
+        include: { festivalEdition: { include: { festivalMaster: true } } },
+      },
+      distributionPlans: {
+        include: { entries: { select: { id: true, role: true } } },
+        orderBy: { createdAt: "desc" },
+      },
+      _count: { select: { submissions: true, tasks: true } },
+    },
   });
   if (!film) return NextResponse.json({ error: "Film non trovato" }, { status: 404 });
   return NextResponse.json(film);

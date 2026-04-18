@@ -39,7 +39,8 @@ interface SubmissionRecord {
   feeCurrency: string | null;
   film: {
     id: string;
-    title: string;
+    titleOriginal?: string;
+    title?: string;
   } | null;
 }
 
@@ -52,7 +53,8 @@ interface PlanEntryRecord {
     id: string;
     film: {
       id: string;
-      title: string;
+      titleOriginal?: string;
+      title?: string;
     } | null;
   } | null;
 }
@@ -1126,7 +1128,7 @@ export default function FestivalDetailPage() {
                           href={`/films/${sub.film.id}`}
                           className="font-medium text-[var(--primary)] hover:underline"
                         >
-                          {sub.film.title}
+                          {sub.film.titleOriginal || sub.film.title || "—"}
                         </Link>
                       ) : (
                         <span className="text-[var(--muted-foreground)]">—</span>
@@ -1173,7 +1175,7 @@ export default function FestivalDetailPage() {
                           href={`/strategies/${entry.plan.id}`}
                           className="font-medium text-[var(--primary)] hover:underline"
                         >
-                          {entry.plan.film.title}
+                          {entry.plan.film.titleOriginal || entry.plan.film.title || "—"}
                         </Link>
                       ) : (
                         <span className="text-[var(--muted-foreground)]">—</span>

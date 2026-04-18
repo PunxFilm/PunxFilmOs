@@ -97,7 +97,7 @@ export const planEntryCreateSchema = z.object({
   priority: z.enum(["A", "B", "C"]).nullish(),
   matchScore: z.number().min(0).max(100).nullish(),
   matchReasoning: z.string().nullish(),
-  waiverApplied: z.boolean().nullish(),
+  waiverApplied: z.boolean().optional(),
   waiverCode: z.string().nullish(),
   estimatedFee: z.number().nullish(),
 });
