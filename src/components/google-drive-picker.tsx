@@ -168,8 +168,9 @@ export function GoogleDrivePicker({
         setLoading(false);
         return;
       }
+      // Niente setMimeTypes: mostriamo tutti i file + cartelle navigabili.
+      // La validazione del tipo avviene dopo nel parser.
       const view = new g.picker.DocsView()
-        .setMimeTypes(mimeTypes)
         .setIncludeFolders(true)
         .setSelectFolderEnabled(false);
       const builder = new g.picker.PickerBuilder()
