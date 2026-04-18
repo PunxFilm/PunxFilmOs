@@ -147,15 +147,53 @@ export function GoogleDrivePicker({
 
   const downloadDriveFile = useCallback(
     async (doc: PickerDoc, token: string): Promise<File> => {
-      const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const isGoogleNative = doc.mimeType.startsWith("application/vnd.google-apps.");
+      let url: string;
+      let finalName = doc.name;
+      let finalMime = doc.mimeType;
+
+      if (isGoogleNative) {
+        // Mappa formato Google → formato export
+        const exportMap: Record<string, { mime: string; ext: string }> = {
+          "application/vnd.google-apps.document": {
+            mime: "application/pdf",
+            ext: ".pdf",
+          },
+          "application/vnd.google-apps.spreadsheet": {
+            mime: "text/csv",
+            ext: ".csv",
+          },
+          "application/vnd.google-apps.presentation": {
+            mime: "application/pdf",
+            ext: ".pdf",
+          },
+        };
+        const target = exportMap[doc.mimeType];
+        if (!target) {
+          throw new Error(
+            `Formato Google non supportato: ${doc.mimeType}. Esporta manualmente in PDF/CSV.`
+          );
+        }
+        url = `https://www.googleapis.com/drive/v3/files/${doc.id}/export?mimeType=${encodeURIComponent(target.mime)}`;
+        finalMime = target.mime;
+        if (!finalName.toLowerCase().endsWith(target.ext)) {
+          finalName += target.ext;
+        }
+      } else {
+        url = `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`;
+      }
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) {
-        throw new Error(`Drive download failed: ${res.status} ${res.statusText}`);
+        const body = await res.text().catch(() => "");
+        throw new Error(
+          `Drive download failed (${res.status}): ${body.slice(0, 200) || res.statusText}`
+        );
       }
       const blob = await res.blob();
-      return new File([blob], doc.name, { type: doc.mimeType });
+      return new File([blob], finalName, { type: finalMime });
     },
     []
   );
