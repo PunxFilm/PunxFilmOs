@@ -55,18 +55,20 @@ export default function StrategiesPage() {
         action={{ label: "Nuova Strategia", href: "/strategies/wizard" }}
       />
 
-      <div className="flex gap-3">
-        <input
-          type="text"
-          placeholder="Cerca film o festival..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-        />
+      <div className="filters-bar">
+        <div className="search-wrap">
+          <input
+            type="text"
+            placeholder="Cerca film o festival…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm"
+          className="filter"
+          style={{ paddingRight: 24 }}
         >
           <option value="">Tutti gli stati</option>
           {PLAN_STATUS_OPTIONS.map((o) => (
@@ -77,23 +79,23 @@ export default function StrategiesPage() {
         </select>
       </div>
 
-      {loading ? (
-        <div className="p-12 text-center border border-[var(--border)] rounded-lg bg-[var(--card)]">
-          <p className="text-[var(--muted-foreground)]">Caricamento...</p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="p-12 text-center border border-[var(--border)] rounded-lg bg-[var(--card)]">
-          <p className="text-[var(--muted-foreground)]">
-            Nessun piano di distribuzione. Crea una nuova strategia.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {filtered.map((plan) => (
-            <PlanCard key={plan.id} plan={plan} />
-          ))}
-        </div>
-      )}
+      <div className="px-6">
+        {loading ? (
+          <div className="card" style={{ padding: 40, textAlign: "center" }}>
+            <p className="muted">Caricamento…</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="card" style={{ padding: 40, textAlign: "center" }}>
+            <p className="muted">Nessun piano di distribuzione. Crea una nuova strategia.</p>
+          </div>
+        ) : (
+          <div className="col gap-3">
+            {filtered.map((plan) => (
+              <PlanCard key={plan.id} plan={plan} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

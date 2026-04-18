@@ -29,68 +29,73 @@ export function PlanCard({ plan }: PlanCardProps) {
     .filter((e) => e.status === "approved" || e.status === "subscribed")
     .reduce((sum, e) => sum + (e.estimatedFee || 0), 0);
 
+  const queueTone = (status: string) => {
+    if (status === "approved") return "badge ok";
+    if (status === "subscribed") return "badge purple";
+    if (status === "rejected") return "badge";
+    return "badge";
+  };
+
   return (
     <Link href={`/strategies/${plan.id}`}>
-      <div className="p-5 rounded-lg border border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted-foreground)] transition-colors">
-        <div className="flex items-start justify-between">
+      <div className="card" style={{ padding: 16, cursor: "pointer" }}>
+        <div className="between" style={{ alignItems: "flex-start" }}>
           <div>
-            <h3 className="font-semibold text-lg">{plan.film.titleOriginal}</h3>
-            <p className="text-sm text-[var(--muted-foreground)]">
+            <h3 className="serif" style={{ fontSize: 16, margin: 0 }}>
+              {plan.film.titleOriginal}
+            </h3>
+            <p className="tiny" style={{ marginTop: 4 }}>
               {plan.film.director} &middot; {plan.film.genre} &middot; {formatDuration(plan.film.duration)}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="row gap-2">
             <StatusBadge value={plan.premiereLevel} />
             <StatusBadge value={plan.status} />
           </div>
         </div>
 
         {premiere && (
-          <div className="mt-3 p-3 rounded-md bg-amber-50 border border-amber-200">
-            <div className="flex items-center gap-2">
-              <StatusBadge value="premiere" />
-              <span className="font-medium text-sm">{premiere.festivalMaster.name}</span>
-              <StatusBadge value={premiere.status} />
-            </div>
+          <div
+            className="row gap-2 mt-3"
+            style={{
+              padding: "8px 10px",
+              borderRadius: "var(--r)",
+              background: "var(--warn-bg)",
+              border: "1px solid color-mix(in oklch, var(--warn) 35%, transparent)",
+              flexWrap: "wrap",
+            }}
+          >
+            <StatusBadge value="premiere" />
+            <span style={{ fontWeight: 500, fontSize: 12.5 }}>{premiere.festivalMaster.name}</span>
+            <StatusBadge value={premiere.status} />
           </div>
         )}
 
         {queue.length > 0 && (
           <div className="mt-3">
-            <p className="text-xs text-[var(--muted-foreground)] mb-1">
+            <p className="tiny" style={{ marginBottom: 6 }}>
               Coda: {approvedCount} approvati / {queue.length} totali
               {subscribedCount > 0 && ` \u00B7 ${subscribedCount} iscritti`}
             </p>
-            <div className="flex flex-wrap gap-1">
+            <div className="row wrap gap-2">
               {queue.slice(0, 5).map((e) => (
                 <span
                   key={e.id}
-                  className={`px-2 py-0.5 rounded text-xs ${
-                    e.status === "approved"
-                      ? "bg-emerald-100 text-emerald-800"
-                      : e.status === "subscribed"
-                        ? "bg-purple-100 text-purple-800"
-                        : e.status === "rejected"
-                          ? "bg-red-100 text-red-800 line-through"
-                          : "bg-[var(--muted)] text-[var(--muted-foreground)]"
-                  }`}
+                  className={`${queueTone(e.status)} nb`}
+                  style={e.status === "rejected" ? { textDecoration: "line-through", opacity: 0.7 } : undefined}
                 >
                   {e.festivalMaster.name}
                 </span>
               ))}
               {queue.length > 5 && (
-                <span className="px-2 py-0.5 text-xs text-[var(--muted-foreground)]">
-                  +{queue.length - 5} altri
-                </span>
+                <span className="tiny">+{queue.length - 5} altri</span>
               )}
             </div>
           </div>
         )}
 
         {totalFees > 0 && (
-          <p className="text-xs text-[var(--muted-foreground)] mt-2">
-            Budget stimato: {formatCurrency(totalFees)}
-          </p>
+          <p className="tiny mt-2">Budget stimato: {formatCurrency(totalFees)}</p>
         )}
       </div>
     </Link>
