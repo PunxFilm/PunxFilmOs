@@ -125,6 +125,7 @@ model Film {
   tasks             Task[]
   materials         FilmMaterial[]
   contracts         DistributionContract[]
+  financeEntries    FinanceEntry[]
 
   @@index([status])
   @@index([premiereStatus])
@@ -357,6 +358,7 @@ model Submission {
   // Fee model: estimatedFee = addebitata al cliente, feesPaid = pagata al festival
   estimatedFee      Float? // fee stimata addebitata al cliente
   feesPaid          Float? // fee effettivamente pagata al festival (actualFee)
+  listPrice         Float? // prezzo di listino originale (colonna "Importo" xlsx)
   waiverApplied     Boolean   @default(false)
   waiverCode        String?
   result            String? // official_selection | competition | special_mention | award
@@ -371,6 +373,7 @@ model Submission {
   festivalEdition FestivalEdition @relation(fields: [festivalEditionId], references: [id], onDelete: Cascade)
   tasks           Task[]
   planEntry       PlanEntry?
+  financeEntries  FinanceEntry[]
 
   @@unique([filmId, festivalEditionId])
   @@index([status])
@@ -487,11 +490,18 @@ model FinanceEntry {
   date         DateTime
   filmTitle    String?
   festivalName String?
+  filmId       String?
+  submissionId String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  film       Film?       @relation(fields: [filmId], references: [id], onDelete: SetNull)
+  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+
   @@index([date])
   @@index([type])
+  @@index([filmId])
+  @@index([submissionId])
 }
 
 // ──────────────────────────────────────────
