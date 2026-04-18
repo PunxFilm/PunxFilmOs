@@ -1038,10 +1038,38 @@ export default function ImportWizardPage() {
                     </div>
                     <div className="space-y-1">
                       <label className="block text-xs font-medium text-[var(--muted-foreground)]">
-                        Fee pagata
+                        Data iscrizione
+                      </label>
+                      <input
+                        type="date"
+                        value={sub.submittedAt || ""}
+                        onChange={(e) =>
+                          updateSubmission(sub.id, "submittedAt", e.target.value)
+                        }
+                        className="w-full px-2 py-1.5 rounded border border-[var(--border)] bg-[var(--background)] text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-[var(--muted-foreground)]">
+                        Piattaforma
+                      </label>
+                      <input
+                        type="text"
+                        value={sub.platform}
+                        onChange={(e) =>
+                          updateSubmission(sub.id, "platform", e.target.value)
+                        }
+                        placeholder="FilmFreeway, Shortfilmdepot…"
+                        className="w-full px-2 py-1.5 rounded border border-[var(--border)] bg-[var(--background)] text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-[var(--muted-foreground)]">
+                        Fee pagata (€)
                       </label>
                       <input
                         type="number"
+                        step="0.01"
                         value={sub.feePaid}
                         onChange={(e) =>
                           updateSubmission(sub.id, "feePaid", Number(e.target.value))
@@ -1051,10 +1079,11 @@ export default function ImportWizardPage() {
                     </div>
                     <div className="space-y-1">
                       <label className="block text-xs font-medium text-[var(--muted-foreground)]">
-                        Fee addebitata
+                        Fee addebitata (€)
                       </label>
                       <input
                         type="number"
+                        step="0.01"
                         value={sub.feeCharged}
                         onChange={(e) =>
                           updateSubmission(sub.id, "feeCharged", Number(e.target.value))
@@ -1062,9 +1091,69 @@ export default function ImportWizardPage() {
                         className="w-full px-2 py-1.5 rounded border border-[var(--border)] bg-[var(--background)] text-sm"
                       />
                     </div>
+                    <div className="space-y-1 col-span-2">
+                      <label className="block text-xs font-medium text-[var(--muted-foreground)]">
+                        Note
+                      </label>
+                      <input
+                        type="text"
+                        value={sub.notes}
+                        onChange={(e) =>
+                          updateSubmission(sub.id, "notes", e.target.value)
+                        }
+                        className="w-full px-2 py-1.5 rounded border border-[var(--border)] bg-[var(--background)] text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSubmissions((prev) => prev.filter((s) => s.id !== sub.id))
+                      }
+                      className="text-xs text-[var(--danger,#e11d48)] hover:underline"
+                    >
+                      Rimuovi
+                    </button>
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Riepilogo contabile */}
+            <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--muted,#f5f5f5)]">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)] mb-2">
+                Movimenti contabili iscrizioni
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <div className="text-xs text-[var(--muted-foreground)]">Iscrizioni totali</div>
+                  <div className="font-semibold">{submissions.length}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[var(--muted-foreground)]">Fee pagata</div>
+                  <div className="font-semibold">{formatCurrency(totalFeePaid)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[var(--muted-foreground)]">Fee addebitata</div>
+                  <div className="font-semibold">{formatCurrency(totalFeeCharged)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[var(--muted-foreground)]">Delta</div>
+                  <div
+                    className="font-semibold"
+                    style={{
+                      color:
+                        totalFeeCharged - totalFeePaid >= 0
+                          ? "var(--ok, #16a34a)"
+                          : "var(--danger, #e11d48)",
+                    }}
+                  >
+                    {formatCurrency(totalFeeCharged - totalFeePaid)}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1123,6 +1212,17 @@ export default function ImportWizardPage() {
                         <option value="low">Bassa</option>
                       </select>
                     </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setQueueEntries((prev) => prev.filter((x) => x.id !== q.id))
+                      }
+                      className="text-xs text-[var(--danger,#e11d48)] hover:underline"
+                    >
+                      Rimuovi
+                    </button>
                   </div>
                 </div>
               ))}
