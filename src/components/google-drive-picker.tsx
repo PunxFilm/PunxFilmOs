@@ -168,7 +168,10 @@ export function GoogleDrivePicker({
         setLoading(false);
         return;
       }
-      const view = new g.picker.DocsView().setMimeTypes(mimeTypes).setIncludeFolders(false);
+      const view = new g.picker.DocsView()
+        .setMimeTypes(mimeTypes)
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false);
       const builder = new g.picker.PickerBuilder()
         .addView(view)
         .setOAuthToken(token)
