@@ -153,10 +153,10 @@ export function StepQueue({
             </button>
           </div>
           <div
-            className="rounded-md border overflow-hidden"
-            style={{ borderColor: "var(--border)" }}
+            className="rounded-md border"
+            style={{ borderColor: "var(--border)", overflowX: "auto" }}
           >
-            <table className="table">
+            <table className="table" style={{ minWidth: 720 }}>
               <thead>
                 <tr>
                   <th style={{ width: 30 }}></th>
