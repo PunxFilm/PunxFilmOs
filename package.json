@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "build:local": "prisma generate && next build",
-    "start": "prisma db push --skip-generate --accept-data-loss && next start",
+    "start": "sed -i 's/provider = \"sqlite\"/provider = \"postgresql\"/' prisma/schema.prisma && prisma db push --skip-generate --accept-data-loss && next start",
     "lint": "next lint",
     "seed": "tsx prisma/seed.ts",
     "export-db": "tsx scripts/export-db.ts",
