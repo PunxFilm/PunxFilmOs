@@ -1,0 +1,29 @@
+name: Daily fill deadlines
+
+on:
+  schedule:
+    # 05:17 UTC = 07:17 Europe/Rome (estate) / 06:17 (inverno)
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Railway endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ENDPOINT: ${{ secrets.CRON_FILL_DEADLINES_URL }}
+        run: |
+          if [ -z "$ENDPOINT" ]; then
+            ENDPOINT="https://punxfilm-app-production.up.railway.app/api/cron/fill-deadlines"
+          fi
+          echo "Hitting $ENDPOINT"
+          response=$(curl -sS -w "\n%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "$ENDPOINT")
+          body=$(echo "$response" | head -n -1)
+          code=$(echo "$response" | tail -n 1)
+          echo "HTTP $code"
+          echo "$body" | head -c 2000
+          if [ "$code" != "200" ]; then
+            exit 1
+          fi
