@@ -157,6 +157,29 @@ function formatCurrency(v: number) {
   }).format(v);
 }
 
+/**
+ * Estrae un titolo film plausibile dal nome di un file PDF/CSV di strategia.
+ * "Ramses - STRATEGIA - Iscrizioni.pdf" → "Ramses"
+ * "La Borda_Strategia_2026.pdf"         → "La Borda"
+ * "titolo_film.csv"                      → "titolo film"
+ */
+function extractFilmTitleFromFilename(filename: string): string {
+  // Rimuovi estensione
+  let name = filename.replace(/\.(pdf|csv|xlsx?|docx?)$/i, "");
+  // Separatori comuni: - _ — .
+  // Prendi tutto prima della prima keyword "strategia/iscrizioni/coda/submission/report"
+  const stopRegex = /\b(strategi[ae]|iscrizion[ei]|coda|submission|report|queue|piano)\b/i;
+  const match = name.match(stopRegex);
+  if (match && match.index !== undefined) {
+    name = name.slice(0, match.index);
+  }
+  // Normalizza separatori
+  name = name.replace(/[_.]+/g, " ").replace(/\s*[-—]\s*/g, " ").trim();
+  // Rimuovi trailing separators residui
+  name = name.replace(/[\s-_.]+$/, "").trim();
+  return name;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Main Page Component                                                */
 /* ------------------------------------------------------------------ */
@@ -284,6 +307,13 @@ export default function ImportWizardPage() {
 
       const { results } = await res.json();
 
+      // Accumulatori feedback
+      let filmSheetCount = 0;
+      let strategyCount = 0;
+      let totalSubmissions = 0;
+      let totalQueue = 0;
+      let firstStrategyFilename = "";
+
       // Process each result
       for (const result of results || []) {
         if (result.data.error) {
@@ -292,6 +322,7 @@ export default function ImportWizardPage() {
         }
 
         if (result.type === "film_sheet") {
+          filmSheetCount++;
           const d = result.data;
           setFilm((prev) => ({
             ...prev,
@@ -343,9 +374,12 @@ export default function ImportWizardPage() {
         }
 
         if (result.type === "strategy") {
+          strategyCount++;
+          if (!firstStrategyFilename) firstStrategyFilename = result.fileName;
           // Iscrizioni (submissions già fatte)
           if (result.data.submissions) {
             const subs = result.data.submissions as Array<Record<string, unknown>>;
+            totalSubmissions += subs.length;
             setSubmissions((prev) => [
               ...prev,
               ...subs.map((s) => ({
@@ -365,6 +399,7 @@ export default function ImportWizardPage() {
           // Coda (festival pianificati, non ancora iscritti)
           if (result.data.queue) {
             const q = result.data.queue as Array<Record<string, unknown>>;
+            totalQueue += q.length;
             setQueueEntries((prev) => [
               ...prev,
               ...q.map((item, i) => ({
@@ -379,6 +414,41 @@ export default function ImportWizardPage() {
           }
           setStrategyParsed(true);
         }
+      }
+
+      // Feedback: quanti documenti e festival parsati
+      const feedbackParts: string[] = [];
+      if (filmSheetCount > 0) feedbackParts.push(`${filmSheetCount} scheda film`);
+      if (strategyCount > 0) {
+        const strategyDetail: string[] = [];
+        if (totalSubmissions > 0) strategyDetail.push(`${totalSubmissions} iscrizioni`);
+        if (totalQueue > 0) strategyDetail.push(`${totalQueue} in coda`);
+        feedbackParts.push(
+          `${strategyCount} strategia${strategyCount > 1 ? "e" : ""}` +
+            (strategyDetail.length ? ` (${strategyDetail.join(", ")})` : "")
+        );
+      }
+      if (feedbackParts.length > 0) {
+        toast(`✨ AI ha analizzato: ${feedbackParts.join(" + ")}`, "success");
+      }
+
+      // Se abbiamo solo strategia (no scheda film), prova a estrarre il titolo
+      // dal nome del file strategia così il wizard può avanzare. L'utente può
+      // completare manualmente gli altri campi.
+      if (filmSheetCount === 0 && strategyCount > 0 && firstStrategyFilename) {
+        const guessedTitle = extractFilmTitleFromFilename(firstStrategyFilename);
+        if (guessedTitle) {
+          setFilm((prev) => ({
+            ...prev,
+            title: prev.title || guessedTitle,
+          }));
+          toast(
+            `Titolo film dedotto dal nome file: "${guessedTitle}". Completa manualmente gli altri campi.`,
+            "success"
+          );
+        }
+        // Attiva il form manuale così l'utente può editare
+        setDataParsed(true);
       }
 
       // Auto-match festivals
